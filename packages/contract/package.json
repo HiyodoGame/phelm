@@ -1,6 +1,6 @@
 {
   "name": "@phelm/contract",
-  "version": "0.0.1",
+  "version": "0.0.2",
   "description": "Shared versioned contracts and zod schemas for phelm",
   "type": "module",
   "exports": {
