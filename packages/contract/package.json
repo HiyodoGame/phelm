@@ -1,0 +1,25 @@
+{
+  "name": "@phelm/contract",
+  "version": "0.0.1",
+  "description": "Shared versioned contracts and zod schemas for phelm",
+  "type": "module",
+  "exports": {
+    ".": {
+      "types": "./dist/index.d.ts",
+      "default": "./dist/index.js"
+    }
+  },
+  "files": [
+    "dist"
+  ],
+  "scripts": {
+    "build": "tsc -p tsconfig.build.json",
+    "typecheck": "tsc --noEmit",
+    "test": "vitest run",
+    "lint": "eslint .",
+    "prepare": "pnpm run build"
+  },
+  "dependencies": {
+    "zod": "^4.0.0"
+  }
+}

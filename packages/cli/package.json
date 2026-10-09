@@ -1,0 +1,23 @@
+{
+  "name": "@phelm/cli",
+  "version": "0.0.1",
+  "description": "Command line interface for phelm",
+  "type": "module",
+  "bin": {
+    "phelm": "dist/index.js"
+  },
+  "files": [
+    "dist"
+  ],
+  "scripts": {
+    "build": "tsc -p tsconfig.build.json",
+    "typecheck": "tsc --noEmit",
+    "test": "vitest run",
+    "lint": "eslint .",
+    "dev": "tsx src/index.ts --version"
+  },
+  "dependencies": {
+    "@phelm/contract": "workspace:*",
+    "commander": "^13.0.0"
+  }
+}
