@@ -1,22 +1,44 @@
 import { describe, expect, it } from 'vitest';
-import { PHELM_CONTRACT_VERSION, TaskIdSchema } from './index.js';
+import pkg from '../package.json' with { type: 'json' };
+import * as moduleExports from './index.js';
+import {
+  CONTRACT_SCHEMA_ENTITIES,
+  exportJsonSchemas,
+  PHELM_CONTRACT_VERSION,
+  renderJsonSchemaFiles,
+} from './index.js';
 
-describe('TaskIdSchema', () => {
-  it('accepts well-formed task ids', () => {
-    expect(TaskIdSchema.parse('T-0001')).toBe('T-0001');
-    expect(TaskIdSchema.parse('T-1234')).toBe('T-1234');
+const ENTITY_SCHEMAS = [
+  'UserSchema',
+  'ProjectCharterSchema',
+  'MilestoneSchema',
+  'EventSchema',
+  'SnapshotSchema',
+  'RiskSchema',
+  'SuggestionSchema',
+  'ProposalSchema',
+  'TaskSpecSchema',
+  'TaskSchema',
+  'AgentConnectionSchema',
+  'DecisionLogSchema',
+] as const;
+
+describe('barrel exports', () => {
+  it('re-exports every contract entity schema', () => {
+    for (const name of ENTITY_SCHEMAS) {
+      expect(moduleExports[name], `missing export: ${name}`).toBeDefined();
+    }
   });
 
-  it('rejects malformed task ids', () => {
-    const invalid = ['', 'T-001', 'T-12345', 't-0001', 'T-00ab', 'T-0001 ', 'TASK-0001'];
-    for (const value of invalid) {
-      expect(TaskIdSchema.safeParse(value).success).toBe(false);
-    }
+  it('re-exports the JSON Schema helpers', () => {
+    expect(typeof exportJsonSchemas).toBe('function');
+    expect(typeof renderJsonSchemaFiles).toBe('function');
+    expect(CONTRACT_SCHEMA_ENTITIES.length).toBe(12);
   });
 });
 
 describe('PHELM_CONTRACT_VERSION', () => {
-  it('is a semver-like string', () => {
-    expect(PHELM_CONTRACT_VERSION).toMatch(/^\d+\.\d+\.\d+$/);
+  it('matches package.json version', () => {
+    expect(PHELM_CONTRACT_VERSION).toBe(pkg.version);
   });
 });

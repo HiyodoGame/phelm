@@ -1,0 +1,866 @@
+// Vitest Snapshot v1, https://vitest.dev/guide/snapshot.html
+
+exports[`exportJsonSchemas > locks the exported shapes 1`] = `
+{
+  "AgentConnection": {
+    "$schema": "https://json-schema.org/draft/2020-12/schema",
+    "additionalProperties": false,
+    "properties": {
+      "agentType": {
+        "minLength": 1,
+        "type": "string",
+      },
+      "channel": {
+        "enum": [
+          "issue_relay",
+          "cli_runner",
+          "mcp",
+        ],
+        "type": "string",
+      },
+      "credentialsRef": {
+        "minLength": 1,
+        "type": "string",
+      },
+      "id": {
+        "minLength": 1,
+        "type": "string",
+      },
+      "status": {
+        "enum": [
+          "connected",
+          "disabled",
+          "error",
+        ],
+        "type": "string",
+      },
+      "userId": {
+        "minLength": 1,
+        "type": "string",
+      },
+    },
+    "required": [
+      "id",
+      "userId",
+      "agentType",
+      "channel",
+      "credentialsRef",
+      "status",
+    ],
+    "type": "object",
+  },
+  "DecisionLog": {
+    "$schema": "https://json-schema.org/draft/2020-12/schema",
+    "additionalProperties": false,
+    "properties": {
+      "action": {
+        "minLength": 1,
+        "type": "string",
+      },
+      "actor": {
+        "enum": [
+          "user",
+          "agent",
+        ],
+        "type": "string",
+      },
+      "actorRef": {
+        "minLength": 1,
+        "type": "string",
+      },
+      "id": {
+        "minLength": 1,
+        "type": "string",
+      },
+      "ref": {
+        "minLength": 1,
+        "type": "string",
+      },
+      "ts": {
+        "format": "date-time",
+        "pattern": "^(?:(?:\\d\\d[2468][048]|\\d\\d[13579][26]|\\d\\d0[48]|[02468][048]00|[13579][26]00)-02-29|\\d{4}-(?:(?:0[13578]|1[02])-(?:0[1-9]|[12]\\d|3[01])|(?:0[469]|11)-(?:0[1-9]|[12]\\d|30)|(?:02)-(?:0[1-9]|1\\d|2[0-8])))T(?:(?:[01]\\d|2[0-3]):[0-5]\\d:[0-5]\\d(?:\\.\\d+)?(?:Z))$",
+        "type": "string",
+      },
+    },
+    "required": [
+      "id",
+      "actor",
+      "actorRef",
+      "action",
+      "ref",
+      "ts",
+    ],
+    "type": "object",
+  },
+  "Event": {
+    "$schema": "https://json-schema.org/draft/2020-12/schema",
+    "additionalProperties": false,
+    "properties": {
+      "actor": {
+        "minLength": 1,
+        "type": "string",
+      },
+      "agent": {
+        "minLength": 1,
+        "type": "string",
+      },
+      "id": {
+        "minLength": 1,
+        "type": "string",
+      },
+      "payload": {
+        "additionalProperties": {},
+        "propertyNames": {
+          "type": "string",
+        },
+        "type": "object",
+      },
+      "projectId": {
+        "minLength": 1,
+        "type": "string",
+      },
+      "ts": {
+        "format": "date-time",
+        "pattern": "^(?:(?:\\d\\d[2468][048]|\\d\\d[13579][26]|\\d\\d0[48]|[02468][048]00|[13579][26]00)-02-29|\\d{4}-(?:(?:0[13578]|1[02])-(?:0[1-9]|[12]\\d|3[01])|(?:0[469]|11)-(?:0[1-9]|[12]\\d|30)|(?:02)-(?:0[1-9]|1\\d|2[0-8])))T(?:(?:[01]\\d|2[0-3]):[0-5]\\d:[0-5]\\d(?:\\.\\d+)?(?:Z))$",
+        "type": "string",
+      },
+      "type": {
+        "enum": [
+          "commit",
+          "pr",
+          "issue",
+          "ci",
+          "agent_run",
+        ],
+        "type": "string",
+      },
+    },
+    "required": [
+      "id",
+      "projectId",
+      "type",
+      "actor",
+      "payload",
+      "ts",
+    ],
+    "type": "object",
+  },
+  "Milestone": {
+    "$schema": "https://json-schema.org/draft/2020-12/schema",
+    "additionalProperties": false,
+    "properties": {
+      "acceptance": {
+        "items": {
+          "minLength": 1,
+          "type": "string",
+        },
+        "type": "array",
+      },
+      "dueDate": {
+        "format": "date",
+        "pattern": "^(?:(?:\\d\\d[2468][048]|\\d\\d[13579][26]|\\d\\d0[48]|[02468][048]00|[13579][26]00)-02-29|\\d{4}-(?:(?:0[13578]|1[02])-(?:0[1-9]|[12]\\d|3[01])|(?:0[469]|11)-(?:0[1-9]|[12]\\d|30)|(?:02)-(?:0[1-9]|1\\d|2[0-8])))$",
+        "type": "string",
+      },
+      "id": {
+        "minLength": 1,
+        "type": "string",
+      },
+      "progress": {
+        "maximum": 100,
+        "minimum": 0,
+        "type": "integer",
+      },
+      "projectId": {
+        "minLength": 1,
+        "type": "string",
+      },
+      "source": {
+        "enum": [
+          "github",
+          "manual",
+        ],
+        "type": "string",
+      },
+      "title": {
+        "minLength": 1,
+        "type": "string",
+      },
+    },
+    "required": [
+      "id",
+      "projectId",
+      "title",
+      "dueDate",
+      "acceptance",
+      "progress",
+      "source",
+    ],
+    "type": "object",
+  },
+  "ProjectCharter": {
+    "$schema": "https://json-schema.org/draft/2020-12/schema",
+    "additionalProperties": false,
+    "properties": {
+      "agents": {
+        "items": {
+          "minLength": 1,
+          "type": "string",
+        },
+        "type": "array",
+      },
+      "cadence": {
+        "exclusiveMinimum": 0,
+        "maximum": 9007199254740991,
+        "type": "integer",
+      },
+      "constraints": {
+        "items": {
+          "minLength": 1,
+          "type": "string",
+        },
+        "type": "array",
+      },
+      "goal": {
+        "minLength": 1,
+        "type": "string",
+      },
+      "id": {
+        "minLength": 1,
+        "type": "string",
+      },
+      "name": {
+        "minLength": 1,
+        "type": "string",
+      },
+      "priority": {
+        "enum": [
+          "P0",
+          "P1",
+          "P2",
+          "P3",
+        ],
+        "type": "string",
+      },
+      "repo": {
+        "pattern": "^[A-Za-z0-9](?:[A-Za-z0-9]|-(?=[A-Za-z0-9])){0,38}\\/[A-Za-z0-9_.-]+$",
+        "type": "string",
+      },
+      "stage": {
+        "enum": [
+          "exploring",
+          "developing",
+          "testing",
+          "released",
+          "maintaining",
+        ],
+        "type": "string",
+      },
+    },
+    "required": [
+      "id",
+      "repo",
+      "name",
+      "goal",
+      "stage",
+      "priority",
+      "cadence",
+      "constraints",
+      "agents",
+    ],
+    "type": "object",
+  },
+  "Proposal": {
+    "$schema": "https://json-schema.org/draft/2020-12/schema",
+    "additionalProperties": false,
+    "properties": {
+      "after": {
+        "additionalProperties": {},
+        "propertyNames": {
+          "type": "string",
+        },
+        "type": "object",
+      },
+      "before": {
+        "additionalProperties": {},
+        "propertyNames": {
+          "type": "string",
+        },
+        "type": "object",
+      },
+      "decidedAt": {
+        "format": "date-time",
+        "pattern": "^(?:(?:\\d\\d[2468][048]|\\d\\d[13579][26]|\\d\\d0[48]|[02468][048]00|[13579][26]00)-02-29|\\d{4}-(?:(?:0[13578]|1[02])-(?:0[1-9]|[12]\\d|3[01])|(?:0[469]|11)-(?:0[1-9]|[12]\\d|30)|(?:02)-(?:0[1-9]|1\\d|2[0-8])))T(?:(?:[01]\\d|2[0-3]):[0-5]\\d:[0-5]\\d(?:\\.\\d+)?(?:Z))$",
+        "type": "string",
+      },
+      "decidedOnDevice": {
+        "enum": [
+          "phone",
+          "tablet",
+          "pc",
+          "web",
+          "cli",
+        ],
+        "type": "string",
+      },
+      "id": {
+        "minLength": 1,
+        "type": "string",
+      },
+      "impact": {
+        "type": "string",
+      },
+      "level": {
+        "enum": [
+          "L1",
+          "L2",
+          "L3",
+        ],
+        "type": "string",
+      },
+      "projectId": {
+        "minLength": 1,
+        "type": "string",
+      },
+      "status": {
+        "enum": [
+          "draft",
+          "pending",
+          "approved",
+          "rejected",
+          "modified",
+          "applied",
+        ],
+        "type": "string",
+      },
+      "type": {
+        "enum": [
+          "adjust_milestone_date",
+          "adjust_priority",
+          "adjust_scope",
+          "pause_direction",
+          "switch_agent",
+        ],
+        "type": "string",
+      },
+    },
+    "required": [
+      "id",
+      "projectId",
+      "type",
+      "before",
+      "after",
+      "impact",
+      "level",
+      "status",
+    ],
+    "type": "object",
+  },
+  "Risk": {
+    "$schema": "https://json-schema.org/draft/2020-12/schema",
+    "additionalProperties": false,
+    "properties": {
+      "evidence": {
+        "items": {
+          "minLength": 1,
+          "type": "string",
+        },
+        "type": "array",
+      },
+      "feedback": {
+        "anyOf": [
+          {
+            "enum": [
+              "useful",
+              "not_useful",
+              "acknowledged",
+            ],
+            "type": "string",
+          },
+          {
+            "type": "null",
+          },
+        ],
+      },
+      "id": {
+        "minLength": 1,
+        "type": "string",
+      },
+      "impact": {
+        "type": "string",
+      },
+      "level": {
+        "enum": [
+          "high",
+          "medium",
+          "low",
+        ],
+        "type": "string",
+      },
+      "projectId": {
+        "minLength": 1,
+        "type": "string",
+      },
+      "status": {
+        "enum": [
+          "open",
+          "acknowledged",
+          "resolved",
+          "dismissed",
+        ],
+        "type": "string",
+      },
+      "type": {
+        "enum": [
+          "stagnation",
+          "ci_failure",
+          "delay",
+          "direction_drift",
+          "resource_conflict",
+          "quality",
+        ],
+        "type": "string",
+      },
+    },
+    "required": [
+      "id",
+      "projectId",
+      "type",
+      "level",
+      "evidence",
+      "impact",
+      "status",
+      "feedback",
+    ],
+    "type": "object",
+  },
+  "Snapshot": {
+    "$schema": "https://json-schema.org/draft/2020-12/schema",
+    "additionalProperties": false,
+    "properties": {
+      "date": {
+        "format": "date",
+        "pattern": "^(?:(?:\\d\\d[2468][048]|\\d\\d[13579][26]|\\d\\d0[48]|[02468][048]00|[13579][26]00)-02-29|\\d{4}-(?:(?:0[13578]|1[02])-(?:0[1-9]|[12]\\d|3[01])|(?:0[469]|11)-(?:0[1-9]|[12]\\d|30)|(?:02)-(?:0[1-9]|1\\d|2[0-8])))$",
+        "type": "string",
+      },
+      "factors": {
+        "additionalProperties": {
+          "type": "number",
+        },
+        "propertyNames": {
+          "enum": [
+            "milestone_progress",
+            "activity",
+            "ci_health",
+            "direction_alignment",
+            "open_blockers",
+          ],
+          "type": "string",
+        },
+        "required": [
+          "milestone_progress",
+          "activity",
+          "ci_health",
+          "direction_alignment",
+          "open_blockers",
+        ],
+        "type": "object",
+      },
+      "healthScore": {
+        "maximum": 100,
+        "minimum": 0,
+        "type": "integer",
+      },
+      "projectId": {
+        "minLength": 1,
+        "type": "string",
+      },
+      "summary": {
+        "type": "string",
+      },
+    },
+    "required": [
+      "projectId",
+      "date",
+      "healthScore",
+      "factors",
+      "summary",
+    ],
+    "type": "object",
+  },
+  "Suggestion": {
+    "$schema": "https://json-schema.org/draft/2020-12/schema",
+    "additionalProperties": false,
+    "properties": {
+      "content": {
+        "minLength": 1,
+        "type": "string",
+      },
+      "dismissalReason": {
+        "type": "string",
+      },
+      "effort": {
+        "enum": [
+          "S",
+          "M",
+          "L",
+        ],
+        "type": "string",
+      },
+      "id": {
+        "minLength": 1,
+        "type": "string",
+      },
+      "projectId": {
+        "minLength": 1,
+        "type": "string",
+      },
+      "rank": {
+        "exclusiveMinimum": 0,
+        "maximum": 9007199254740991,
+        "type": "integer",
+      },
+      "reason": {
+        "minLength": 1,
+        "type": "string",
+      },
+      "recommendedAgent": {
+        "anyOf": [
+          {
+            "minLength": 1,
+            "type": "string",
+          },
+          {
+            "const": "user",
+            "type": "string",
+          },
+        ],
+      },
+      "status": {
+        "enum": [
+          "shown",
+          "adopted",
+          "dispatched",
+          "snoozed",
+          "dismissed",
+        ],
+        "type": "string",
+      },
+    },
+    "required": [
+      "id",
+      "projectId",
+      "content",
+      "reason",
+      "effort",
+      "rank",
+      "status",
+    ],
+    "type": "object",
+  },
+  "Task": {
+    "$schema": "https://json-schema.org/draft/2020-12/schema",
+    "additionalProperties": false,
+    "properties": {
+      "channel": {
+        "enum": [
+          "issue_relay",
+          "cli_runner",
+          "mcp",
+        ],
+        "type": "string",
+      },
+      "id": {
+        "minLength": 1,
+        "type": "string",
+      },
+      "prUrl": {
+        "format": "uri",
+        "type": "string",
+      },
+      "projectId": {
+        "minLength": 1,
+        "type": "string",
+      },
+      "result": {},
+      "spec": {
+        "additionalProperties": false,
+        "properties": {
+          "acceptance": {
+            "items": {
+              "minLength": 1,
+              "type": "string",
+            },
+            "type": "array",
+          },
+          "branch": {
+            "description": "Defaults to helm/<taskId>; see defaultBranchFor().",
+            "minLength": 1,
+            "type": "string",
+          },
+          "context": {
+            "additionalProperties": false,
+            "properties": {
+              "constraints": {
+                "items": {
+                  "minLength": 1,
+                  "type": "string",
+                },
+                "type": "array",
+              },
+              "files": {
+                "items": {
+                  "minLength": 1,
+                  "type": "string",
+                },
+                "type": "array",
+              },
+              "issues": {
+                "items": {
+                  "minLength": 1,
+                  "type": "string",
+                },
+                "type": "array",
+              },
+            },
+            "required": [
+              "issues",
+              "files",
+              "constraints",
+            ],
+            "type": "object",
+          },
+          "goal": {
+            "minLength": 1,
+            "type": "string",
+          },
+          "limits": {
+            "additionalProperties": false,
+            "properties": {
+              "maxDurationMinutes": {
+                "exclusiveMinimum": 0,
+                "maximum": 9007199254740991,
+                "type": "integer",
+              },
+              "noDirectPushToMain": {
+                "default": true,
+                "type": "boolean",
+              },
+              "requirePr": {
+                "default": true,
+                "type": "boolean",
+              },
+            },
+            "required": [
+              "noDirectPushToMain",
+              "requirePr",
+            ],
+            "type": "object",
+          },
+          "project": {
+            "minLength": 1,
+            "type": "string",
+          },
+          "repo": {
+            "pattern": "^[A-Za-z0-9](?:[A-Za-z0-9]|-(?=[A-Za-z0-9])){0,38}\\/[A-Za-z0-9_.-]+$",
+            "type": "string",
+          },
+          "targetAgent": {
+            "minLength": 1,
+            "type": "string",
+          },
+          "taskId": {
+            "pattern": "^T-\\d{4}$",
+            "type": "string",
+          },
+        },
+        "required": [
+          "taskId",
+          "project",
+          "repo",
+          "goal",
+          "context",
+          "acceptance",
+          "targetAgent",
+          "limits",
+        ],
+        "type": "object",
+      },
+      "status": {
+        "enum": [
+          "created",
+          "confirmed",
+          "dispatched",
+          "running",
+          "pr_opened",
+          "done",
+          "failed",
+        ],
+        "type": "string",
+      },
+      "targetAgent": {
+        "minLength": 1,
+        "type": "string",
+      },
+    },
+    "required": [
+      "id",
+      "projectId",
+      "spec",
+      "targetAgent",
+      "channel",
+      "status",
+    ],
+    "type": "object",
+  },
+  "TaskSpec": {
+    "$schema": "https://json-schema.org/draft/2020-12/schema",
+    "additionalProperties": false,
+    "properties": {
+      "acceptance": {
+        "items": {
+          "minLength": 1,
+          "type": "string",
+        },
+        "type": "array",
+      },
+      "branch": {
+        "description": "Defaults to helm/<taskId>; see defaultBranchFor().",
+        "minLength": 1,
+        "type": "string",
+      },
+      "context": {
+        "additionalProperties": false,
+        "properties": {
+          "constraints": {
+            "items": {
+              "minLength": 1,
+              "type": "string",
+            },
+            "type": "array",
+          },
+          "files": {
+            "items": {
+              "minLength": 1,
+              "type": "string",
+            },
+            "type": "array",
+          },
+          "issues": {
+            "items": {
+              "minLength": 1,
+              "type": "string",
+            },
+            "type": "array",
+          },
+        },
+        "required": [
+          "issues",
+          "files",
+          "constraints",
+        ],
+        "type": "object",
+      },
+      "goal": {
+        "minLength": 1,
+        "type": "string",
+      },
+      "limits": {
+        "additionalProperties": false,
+        "properties": {
+          "maxDurationMinutes": {
+            "exclusiveMinimum": 0,
+            "maximum": 9007199254740991,
+            "type": "integer",
+          },
+          "noDirectPushToMain": {
+            "default": true,
+            "type": "boolean",
+          },
+          "requirePr": {
+            "default": true,
+            "type": "boolean",
+          },
+        },
+        "required": [
+          "noDirectPushToMain",
+          "requirePr",
+        ],
+        "type": "object",
+      },
+      "project": {
+        "minLength": 1,
+        "type": "string",
+      },
+      "repo": {
+        "pattern": "^[A-Za-z0-9](?:[A-Za-z0-9]|-(?=[A-Za-z0-9])){0,38}\\/[A-Za-z0-9_.-]+$",
+        "type": "string",
+      },
+      "targetAgent": {
+        "minLength": 1,
+        "type": "string",
+      },
+      "taskId": {
+        "pattern": "^T-\\d{4}$",
+        "type": "string",
+      },
+    },
+    "required": [
+      "taskId",
+      "project",
+      "repo",
+      "goal",
+      "context",
+      "acceptance",
+      "targetAgent",
+      "limits",
+    ],
+    "type": "object",
+  },
+  "User": {
+    "$schema": "https://json-schema.org/draft/2020-12/schema",
+    "additionalProperties": false,
+    "properties": {
+      "githubLogin": {
+        "minLength": 1,
+        "type": "string",
+      },
+      "huaweiUid": {
+        "minLength": 1,
+        "type": "string",
+      },
+      "id": {
+        "minLength": 1,
+        "type": "string",
+      },
+      "settings": {
+        "additionalProperties": false,
+        "properties": {
+          "briefingTime": {
+            "default": "08:30",
+            "pattern": "^([01]\\d|2[0-3]):[0-5]\\d$",
+            "type": "string",
+          },
+          "notificationLevel": {
+            "enum": [
+              "all",
+              "important_only",
+            ],
+            "type": "string",
+          },
+        },
+        "required": [
+          "briefingTime",
+          "notificationLevel",
+        ],
+        "type": "object",
+      },
+    },
+    "required": [
+      "id",
+      "githubLogin",
+      "settings",
+    ],
+    "type": "object",
+  },
+}
+`;
