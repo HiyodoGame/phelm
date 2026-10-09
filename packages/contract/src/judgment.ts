@@ -21,19 +21,21 @@ export const RiskStatusSchema = z.enum(['open', 'acknowledged', 'resolved', 'dis
 export const RiskFeedbackSchema = z.enum(['useful', 'not_useful', 'acknowledged']);
 
 /** A detected threat to a project's goal, backed by citable evidence. */
-export const RiskSchema = z.object({
-  id: z.string().min(1),
-  projectId: z.string().min(1),
-  type: RiskTypeSchema,
-  level: RiskLevelSchema,
-  /** URLs or other references supporting the detection. */
-  evidence: z.array(z.string().min(1)),
-  /** Human-readable description of the potential impact. */
-  impact: z.string(),
-  status: RiskStatusSchema,
-  /** User feedback on this risk; null while no feedback has been given. */
-  feedback: RiskFeedbackSchema.nullable(),
-});
+export const RiskSchema = z
+  .object({
+    id: z.string().min(1),
+    projectId: z.string().min(1),
+    type: RiskTypeSchema,
+    level: RiskLevelSchema,
+    /** URLs or other references supporting the detection. */
+    evidence: z.array(z.string().min(1)),
+    /** Human-readable description of the potential impact. */
+    impact: z.string(),
+    status: RiskStatusSchema,
+    /** User feedback on this risk; null while no feedback has been given. */
+    feedback: RiskFeedbackSchema.nullable(),
+  })
+  .strict();
 
 /** Lifecycle of a suggestion shown to the user. */
 export const SuggestionStatusSchema = z.enum([
@@ -48,21 +50,23 @@ export const SuggestionStatusSchema = z.enum([
 export const RecommendedAgentSchema = z.union([AgentTypeSchema, z.literal('user')]);
 
 /** A concrete next action phelm proposes to the user, ranked against its peers. */
-export const SuggestionSchema = z.object({
-  id: z.string().min(1),
-  projectId: z.string().min(1),
-  /** Actionable content of the suggestion, phrased for the briefing. */
-  content: z.string().min(1),
-  /** Why phelm believes this action is worth taking now. */
-  reason: z.string().min(1),
-  effort: EffortSchema,
-  /** Sort rank among sibling suggestions; 1 is the top suggestion. */
-  rank: z.number().int().positive(),
-  recommendedAgent: RecommendedAgentSchema.optional(),
-  status: SuggestionStatusSchema,
-  /** Present when status is "dismissed", to label the feedback loop. */
-  dismissalReason: z.string().optional(),
-});
+export const SuggestionSchema = z
+  .object({
+    id: z.string().min(1),
+    projectId: z.string().min(1),
+    /** Actionable content of the suggestion, phrased for the briefing. */
+    content: z.string().min(1),
+    /** Why phelm believes this action is worth taking now. */
+    reason: z.string().min(1),
+    effort: EffortSchema,
+    /** Sort rank among sibling suggestions; 1 is the top suggestion. */
+    rank: z.number().int().positive(),
+    recommendedAgent: RecommendedAgentSchema.optional(),
+    status: SuggestionStatusSchema,
+    /** Present when status is "dismissed", to label the feedback loop. */
+    dismissalReason: z.string().optional(),
+  })
+  .strict();
 
 /** Kind of adjustment a proposal requests. */
 export const ProposalTypeSchema = z.enum([
@@ -90,22 +94,24 @@ export const ProposalStatusSchema = z.enum([
 export const ProposalDeviceSchema = z.enum(['phone', 'tablet', 'pc', 'web', 'cli']);
 
 /** A proposed change to the project's plan awaiting user approval. */
-export const ProposalSchema = z.object({
-  id: z.string().min(1),
-  projectId: z.string().min(1),
-  type: ProposalTypeSchema,
-  /** State before the change; shape is type-specific and intentionally loose. */
-  before: z.record(z.string(), z.unknown()),
-  /** State after the change; shape is type-specific and intentionally loose. */
-  after: z.record(z.string(), z.unknown()),
-  /** Human-readable description of the expected impact. */
-  impact: z.string(),
-  level: ProposalLevelSchema,
-  status: ProposalStatusSchema,
-  /** Present once the proposal has been decided. */
-  decidedAt: TimestampSchema.optional(),
-  decidedOnDevice: ProposalDeviceSchema.optional(),
-});
+export const ProposalSchema = z
+  .object({
+    id: z.string().min(1),
+    projectId: z.string().min(1),
+    type: ProposalTypeSchema,
+    /** State before the change; shape is type-specific and intentionally loose. */
+    before: z.record(z.string(), z.unknown()),
+    /** State after the change; shape is type-specific and intentionally loose. */
+    after: z.record(z.string(), z.unknown()),
+    /** Human-readable description of the expected impact. */
+    impact: z.string(),
+    level: ProposalLevelSchema,
+    status: ProposalStatusSchema,
+    /** Present once the proposal has been decided. */
+    decidedAt: TimestampSchema.optional(),
+    decidedOnDevice: ProposalDeviceSchema.optional(),
+  })
+  .strict();
 
 /** Inferred type of {@link RiskTypeSchema}. */
 export type RiskType = z.infer<typeof RiskTypeSchema>;
