@@ -1,21 +1,21 @@
-# 依赖与构建产物
+# Dependencies & build artifacts
 node_modules/
 dist/
 coverage/
 *.tsbuildinfo
 
-# 环境与密钥
+# Environment & secrets
 .env
 .env.*
 *.pem
 *.key
 
-# IDE / 系统
+# IDE / OS files
 .idea/
 .vscode/
 *.iml
 .DS_Store
 Thumbs.db
 
-# 包发布
+# Package publishing
 *.tgz
