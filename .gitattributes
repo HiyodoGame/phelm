@@ -1,0 +1,3 @@
+# Normalize line endings: LF in repo and working tree for all text files,
+# so Windows contributors (autocrlf=true) don't produce phantom diffs.
+* text=auto eol=lf

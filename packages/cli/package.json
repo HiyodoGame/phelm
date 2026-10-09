@@ -19,5 +19,8 @@
   "dependencies": {
     "@phelm/contract": "workspace:*",
     "commander": "^13.0.0"
+  },
+  "devDependencies": {
+    "@types/node": "^22.0.0"
   }
 }

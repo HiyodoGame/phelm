@@ -13,10 +13,11 @@
     "dist"
   ],
   "scripts": {
-    "build": "tsc -p tsconfig.build.json",
+    "build": "tsc -p tsconfig.build.json && pnpm run schema:export",
     "typecheck": "tsc --noEmit",
     "test": "vitest run",
     "lint": "eslint .",
+    "schema:export": "tsx scripts/export-json-schema.ts",
     "prepare": "pnpm run build"
   },
   "dependencies": {
