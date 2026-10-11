@@ -56,6 +56,26 @@ Your agent can then ask "what should I work on?" (`get_task`), read project cont
 3. **Human-in-the-loop** — plan changes ship as proposals you approve, not silent mutations.
 4. **Least privilege by default** — the MCP server is read + report only; no repo write access; every call is audited. (We care about MCP security — see [SECURITY.md](SECURITY.md).)
 
+## Getting started (CLI)
+
+`phelm login` uses the GitHub OAuth **device flow** — you sign in in the
+browser, the CLI never sees a password. The token is stored locally,
+encrypted at rest (AES-256-GCM under `~/.phelm`).
+
+You need the **client id** of a GitHub App that has the device flow enabled
+(Settings → Developer settings → GitHub Apps → your app → General → enable
+device flow):
+
+```bash
+PHELM_CLIENT_ID=Iv1.xxx    # or pass --client-id on each login
+pnpm --filter @phelm/cli dev -- login        # or the built `phelm login`
+phelm repos                                 # list your repositories
+phelm repos import owner/name --api http://localhost:3000 --token <api-token>
+```
+
+No client id ships with this repository: bring your own GitHub App (or use
+the one from your Helm Agent deployment).
+
 ## Roadmap
 
 See [docs/ROADMAP.md](docs/ROADMAP.md).
