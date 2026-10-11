@@ -130,5 +130,12 @@ const isDirectRun =
   Boolean(entryPoint) && import.meta.url === pathToFileURL(realpathSync(entryPoint as string)).href;
 
 if (isDirectRun) {
-  createProgram().parse();
+  // Async command errors surface here: print the message, not a stack, and
+  // exit non-zero (401/409/network failures are user-actionable states).
+  createProgram()
+    .parseAsync()
+    .catch((error: unknown) => {
+      console.error(`phelm: ${error instanceof Error ? error.message : String(error)}`);
+      process.exitCode = 1;
+    });
 }
