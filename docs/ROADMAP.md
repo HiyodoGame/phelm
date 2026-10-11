@@ -4,8 +4,9 @@ High-level public roadmap. Detailed planning lives in the private repository; th
 
 ## Now — P0: the brain, CLI & MCP (weeks 1-4)
 
-- [ ] Monorepo scaffold + CI
-- [ ] `packages/contract` — shared schemas (Task Spec, events, snapshots, risks, proposals)
+- [x] Monorepo scaffold + CI
+- [x] `packages/contract` — shared schemas (Task Spec, events, snapshots, risks, proposals)
+- [x] `phelm login` (GitHub device flow, encrypted local token) + `phelm repos` (list / import)
 - [ ] GitHub App ingestion (commits/PRs/issues/CI → unified events → project snapshots)
 - [ ] Project charter with AI-drafted goals & milestones
 - [ ] Health scoring + 6 risk rule types (stalled / red CI / slipping / drift / conflict / quality)
