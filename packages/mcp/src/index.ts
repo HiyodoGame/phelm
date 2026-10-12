@@ -1,10 +1,44 @@
-/**
- * Static metadata reported when the MCP server is initialized.
- * Placeholder until the real MCP server is wired up in a later task.
- */
-export const MCP_SERVER_INFO = {
-  name: 'phelm-mcp',
-  version: '0.0.1',
-} as const;
-
-export type McpServerInfo = typeof MCP_SERVER_INFO;
+export { MCP_SERVER_INFO, type McpServerInfo } from './info.js';
+export {
+  type Board,
+  type Briefing,
+  boardSchema,
+  briefingSchema,
+  clientConfigFromEnv,
+  type GapGroup,
+  type GapGroups,
+  gapGroupsSchema,
+  HelmApiClient,
+  HelmClientError,
+  type HelmClientErrorCode,
+  HelmNetworkError,
+  HelmNotFoundError,
+  HelmServiceUnavailableError,
+  HelmUnexpectedResponseError,
+  HelmUnauthorizedError,
+  type HelmApi,
+  type HelmApiConfig,
+  type LinkageGap,
+  linkageGapSchema,
+  type BoardProject,
+  TokenNotConfiguredError,
+} from './client.js';
+export {
+  buildProjectContext,
+  type ContextGap,
+  type ContextOptions,
+  type ContextProject,
+  type ContextRelation,
+  type LatestBriefing,
+  type ProjectContext,
+  type ProjectContextResult,
+  type ProjectNotTracked,
+} from './context.js';
+export {
+  type AdvisoryResult,
+  type AdvisoryWithTask,
+  type AdvisoryWithoutTask,
+  buildAdvisory,
+  compareGaps,
+} from './task.js';
+export { createPhelmMcpServer, toolErrorMessage, type PhelmMcpDeps } from './server.js';

@@ -1,13 +1,16 @@
 {
   "name": "@phelm/mcp",
   "version": "0.0.1",
-  "description": "Model Context Protocol server for phelm (placeholder)",
+  "description": "Model Context Protocol server for phelm: get_project_context, get_task and report_progress over stdio or Streamable HTTP",
   "type": "module",
   "exports": {
     ".": {
       "types": "./dist/index.d.ts",
       "default": "./dist/index.js"
     }
+  },
+  "bin": {
+    "phelm-mcp": "dist/transport.js"
   },
   "files": [
     "dist"
@@ -19,6 +22,8 @@
     "lint": "eslint ."
   },
   "dependencies": {
-    "@phelm/contract": "workspace:*"
+    "@modelcontextprotocol/sdk": "1.32.1",
+    "@phelm/contract": "workspace:*",
+    "zod": "^4.6.5"
   }
 }
