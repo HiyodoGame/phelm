@@ -4,6 +4,7 @@ import { AgentConnectionSchema, TaskSchema, TaskSpecSchema } from './dispatch.js
 import { EventSchema, SnapshotSchema } from './events.js';
 import { UserSchema, DecisionLogSchema } from './identity.js';
 import { ProposalSchema, RiskSchema, SuggestionSchema } from './judgment.js';
+import { LinkageGapSchema, ProjectRelationSchema } from './relation.js';
 
 /**
  * A JSON Schema document as produced by zod v4's native converter.
@@ -26,6 +27,8 @@ export const CONTRACT_SCHEMA_ENTITIES = [
   'Task',
   'AgentConnection',
   'DecisionLog',
+  'ProjectRelation',
+  'LinkageGap',
 ] as const;
 
 /** Entity names of the JSON Schema export. */
@@ -53,6 +56,8 @@ export function exportJsonSchemas(): Record<ContractSchemaEntity, JsonSchema> {
     Task: toJSONSchema(TaskSchema),
     AgentConnection: toJSONSchema(AgentConnectionSchema),
     DecisionLog: toJSONSchema(DecisionLogSchema),
+    ProjectRelation: toJSONSchema(ProjectRelationSchema),
+    LinkageGap: toJSONSchema(LinkageGapSchema),
   };
 }
 
