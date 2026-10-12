@@ -71,6 +71,9 @@ PHELM_CLIENT_ID=Iv1.xxx    # or pass --client-id on each login
 pnpm --filter @phelm/cli dev -- login        # or the built `phelm login`
 phelm repos                                 # list your repositories
 phelm repos import owner/name --api http://localhost:3000 --token <api-token>
+phelm board                                  # health, CI and milestones across projects
+phelm brief                                  # latest daily briefing (linkage gaps)
+phelm today                                  # today's briefing (UTC date; exits 1 when none yet)
 ```
 
 No client id ships with this repository: bring your own GitHub App (or use

@@ -1,11 +1,13 @@
 import { mkdtempSync, rmSync } from 'node:fs';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
-import { afterAll, beforeEach, describe, expect, it } from 'vitest';
+import { afterAll, beforeEach, describe, expect, it, vi } from 'vitest';
 import { PHELM_CONTRACT_VERSION } from '@phelm/contract';
 import { openConfig, clearRawCredentials } from './config.js';
+import { BriefingNotFoundError } from './brief.js';
 import { loadStoredToken, saveStoredToken } from './crypto.js';
 import { createProgram, type CliDeps } from './index.js';
+import type { Briefing } from './brief.js';
 import type { ImportResult, UserRepo } from './github-api.js';
 
 /**
@@ -24,6 +26,20 @@ afterAll(() => {
 beforeEach(() => {
   clearRawCredentials(openConfig(env));
 });
+
+const BRIEFING_MD = '# Daily briefing\n\nBody line.\n';
+const BRIEFING: Briefing = {
+  date: '2026-10-12',
+  stats: {
+    totalGaps: 0,
+    relations: 0,
+    maxSeverity: 'none',
+    chains: 0,
+    pendingDrafts: 0,
+    draftRelations: 0,
+  },
+  contentMd: BRIEFING_MD,
+};
 
 function makeDeps(overrides: Partial<CliDeps> = {}): CliDeps {
   return {
@@ -44,7 +60,34 @@ function makeDeps(overrides: Partial<CliDeps> = {}): CliDeps {
       repo: 'octo/one',
       name: 'one',
     }),
+    fetchLatestBriefing: async () => BRIEFING,
+    fetchBriefingForDate: async () => BRIEFING,
     ...overrides,
+  };
+}
+
+/** Capture stdout/stderr so briefing output can be asserted byte-for-byte. */
+function captureStreams(): {
+  out: string[];
+  err: string[];
+  restore: () => void;
+} {
+  const out: string[] = [];
+  const err: string[] = [];
+  const outSpy = vi.spyOn(process.stdout, 'write').mockImplementation(((chunk: unknown) => {
+    out.push(String(chunk));
+    return true;
+  }) as typeof process.stdout.write);
+  const errSpy = vi.spyOn(console, 'error').mockImplementation((...args: unknown[]) => {
+    err.push(args.map((arg) => String(arg)).join(' '));
+  });
+  return {
+    out,
+    err,
+    restore: () => {
+      outSpy.mockRestore();
+      errSpy.mockRestore();
+    },
   };
 }
 
@@ -74,6 +117,12 @@ describe('phelm cli', () => {
     const program = createProgram(makeDeps());
     const names = program.commands.map((command) => command.name());
     expect(names).toEqual(expect.arrayContaining(['login', 'logout', 'repos']));
+  });
+
+  it('registers the brief and today commands', () => {
+    const program = createProgram(makeDeps());
+    const names = program.commands.map((command) => command.name());
+    expect(names).toEqual(expect.arrayContaining(['brief', 'today']));
   });
 });
 
@@ -176,5 +225,74 @@ describe('phelm repos', () => {
     expect(seenOptions).toEqual([
       { apiBaseUrl: 'http://api.example.test', token: 'server-token', repo: 'octo/one' },
     ]);
+  });
+});
+
+describe('phelm brief', () => {
+  it('prints the latest briefing verbatim to stdout and the meta line to stderr', async () => {
+    const seen: Array<{ apiBaseUrl: string; token: string }> = [];
+    const capture = captureStreams();
+    try {
+      const program = createProgram(
+        makeDeps({
+          fetchLatestBriefing: async (options) => {
+            seen.push(options);
+            return BRIEFING;
+          },
+        }),
+      );
+      await run(program, ['brief', '--api', 'http://api.example.test', '--token', 'server-token']);
+    } finally {
+      capture.restore();
+    }
+    expect(seen).toEqual([{ apiBaseUrl: 'http://api.example.test', token: 'server-token' }]);
+    expect(capture.err).toEqual(['briefing for 2026-10-12']);
+    // Verbatim: no prefix, no added or stripped trailing newline.
+    expect(capture.out.join('')).toBe(BRIEFING_MD);
+  });
+});
+
+describe('phelm today', () => {
+  it('fetches the current UTC date and prints the briefing verbatim', async () => {
+    const seenDates: string[] = [];
+    const capture = captureStreams();
+    try {
+      const program = createProgram(
+        makeDeps({
+          fetchBriefingForDate: async (options) => {
+            seenDates.push(options.date);
+            return BRIEFING;
+          },
+        }),
+      );
+      await run(program, ['today']);
+    } finally {
+      capture.restore();
+    }
+    expect(seenDates).toEqual([new Date().toISOString().slice(0, 10)]);
+    expect(capture.err).toEqual(['briefing for 2026-10-12']);
+    expect(capture.out.join('')).toBe(BRIEFING_MD);
+  });
+
+  it('exits 1 with a hint on 404 and never falls back to the latest briefing', async () => {
+    const capture = captureStreams();
+    try {
+      const program = createProgram(
+        makeDeps({
+          fetchBriefingForDate: async () => {
+            throw new BriefingNotFoundError('2026-10-12');
+          },
+        }),
+      );
+      await run(program, ['today']);
+    } finally {
+      capture.restore();
+    }
+    expect(process.exitCode).toBe(1);
+    expect(capture.err).toEqual([
+      'no briefing generated for today yet (it is generated daily; try `phelm brief` for the latest)',
+    ]);
+    expect(capture.out).toEqual([]);
+    process.exitCode = 0;
   });
 });

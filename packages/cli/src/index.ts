@@ -6,6 +6,14 @@ import { Command } from 'commander';
 import { PHELM_CONTRACT_VERSION } from '@phelm/contract';
 import { clearRawCredentials, openConfig } from './config.js';
 import { fetchBoard, renderBoard } from './board.js';
+import {
+  BriefingNotFoundError,
+  fetchBriefingForDate as fetchBriefingForDateFromServer,
+  fetchLatestBriefing as fetchLatestBriefingFromServer,
+  printBriefing,
+  utcToday,
+  type Briefing,
+} from './brief.js';
 import { loadStoredToken, saveStoredToken } from './crypto.js';
 import { loginWithDeviceFlow } from './device-flow.js';
 import {
@@ -33,6 +41,12 @@ export interface CliDeps {
     token: string;
     repo: string;
   }) => Promise<ImportResult>;
+  fetchLatestBriefing?: (options: { apiBaseUrl: string; token: string }) => Promise<Briefing>;
+  fetchBriefingForDate?: (options: {
+    apiBaseUrl: string;
+    token: string;
+    date: string;
+  }) => Promise<Briefing>;
 }
 
 /** Build the phelm commander program. Exported so tests can drive it. */
@@ -44,6 +58,13 @@ export function createProgram(deps: CliDeps = {}): Command {
   const importRepo =
     deps.importRepo ??
     ((options: { apiBaseUrl: string; token: string; repo: string }) => importRepoOnServer(options));
+  const fetchLatestBriefing =
+    deps.fetchLatestBriefing ??
+    ((options: { apiBaseUrl: string; token: string }) => fetchLatestBriefingFromServer(options));
+  const fetchBriefingForDate =
+    deps.fetchBriefingForDate ??
+    ((options: { apiBaseUrl: string; token: string; date: string }) =>
+      fetchBriefingForDateFromServer(options));
 
   const program = new Command();
 
@@ -70,6 +91,57 @@ export function createProgram(deps: CliDeps = {}): Command {
       }
       const colors = process.stdout.isTTY === true && env.NO_COLOR === undefined;
       console.log(renderBoard(board, { colors }));
+    });
+
+  program
+    .command('brief')
+    .description('Print the latest daily briefing (linkage gaps) from your Helm Agent server')
+    .option('--api <url>', 'Helm Agent API base URL', env.PHELM_API_BASE ?? DEFAULT_API_BASE)
+    .option(
+      '--token <token>',
+      'Helm Agent API token (or set PHELM_API_TOKEN)',
+      env.PHELM_API_TOKEN ?? '',
+    )
+    .action(async (options: { api: string; token: string }) => {
+      const briefing = await fetchLatestBriefing({ apiBaseUrl: options.api, token: options.token });
+      printBriefing(briefing, {
+        out: (text) => process.stdout.write(text),
+        err: (text) => console.error(text),
+      });
+    });
+
+  program
+    .command('today')
+    .description("Print today's briefing (UTC date; it is generated daily)")
+    .option('--api <url>', 'Helm Agent API base URL', env.PHELM_API_BASE ?? DEFAULT_API_BASE)
+    .option(
+      '--token <token>',
+      'Helm Agent API token (or set PHELM_API_TOKEN)',
+      env.PHELM_API_TOKEN ?? '',
+    )
+    .action(async (options: { api: string; token: string }) => {
+      try {
+        const briefing = await fetchBriefingForDate({
+          apiBaseUrl: options.api,
+          token: options.token,
+          date: utcToday(),
+        });
+        printBriefing(briefing, {
+          out: (text) => process.stdout.write(text),
+          err: (text) => console.error(text),
+        });
+      } catch (error) {
+        if (error instanceof BriefingNotFoundError) {
+          // Expected state, not a crash: today's briefing may not exist yet.
+          // No silent fallback to the latest one — `today` stays deterministic.
+          console.error(
+            'no briefing generated for today yet (it is generated daily; try `phelm brief` for the latest)',
+          );
+          process.exitCode = 1;
+          return;
+        }
+        throw error;
+      }
     });
 
   program
