@@ -21,6 +21,8 @@ const ENTITY_SCHEMAS = [
   'TaskSchema',
   'AgentConnectionSchema',
   'DecisionLogSchema',
+  'ProjectRelationSchema',
+  'LinkageGapSchema',
 ] as const;
 
 describe('barrel exports', () => {
@@ -33,7 +35,7 @@ describe('barrel exports', () => {
   it('re-exports the JSON Schema helpers', () => {
     expect(typeof exportJsonSchemas).toBe('function');
     expect(typeof renderJsonSchemaFiles).toBe('function');
-    expect(CONTRACT_SCHEMA_ENTITIES.length).toBe(12);
+    expect(CONTRACT_SCHEMA_ENTITIES.length).toBe(14);
   });
 });
 

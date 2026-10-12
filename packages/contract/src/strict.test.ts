@@ -5,11 +5,12 @@ import { AgentConnectionSchema, TaskSchema, TaskSpecSchema } from './dispatch.js
 import { EventSchema, SnapshotSchema } from './events.js';
 import { UserSchema, DecisionLogSchema } from './identity.js';
 import { ProposalSchema, RiskSchema, SuggestionSchema } from './judgment.js';
+import { LinkageGapSchema, ProjectRelationSchema } from './relation.js';
 
 /**
  * Every entity object is strict: unknown keys are rejected (not silently
  * stripped), matching the exported JSON Schemas' additionalProperties:false.
- * This suite locks that policy in one place for all 11 entities + TaskSpec.
+ * This suite locks that policy in one place for all 13 entities + TaskSpec.
  */
 const taskSpec = {
   taskId: 'T-0001',
@@ -161,6 +162,35 @@ const cases = [
       action: 'suggestion.dismissed',
       ref: 'sug_1',
       ts: '2026-10-10T08:00:00Z',
+    },
+  ],
+  [
+    'ProjectRelation',
+    ProjectRelationSchema,
+    {
+      id: 'rel_1',
+      sourceProjectId: 'prj_1',
+      targetProjectId: 'prj_2',
+      kind: 'app-to-product-page',
+      rules: [{ signal: 'version_release', enabled: true }],
+      origin: 'manual',
+      status: 'draft',
+      createdAt: '2026-10-10T08:00:00Z',
+    },
+  ],
+  [
+    'LinkageGap',
+    LinkageGapSchema,
+    {
+      id: 'gap_1',
+      relationId: 'rel_1',
+      signal: 'version_release',
+      description: 'the portal entry still links to v2.2',
+      impact: 'users reach an outdated release page',
+      evidence: [{ projectId: 'prj_2', path: 'docs/entry.md', changedAt: '2026-10-10T08:00:00Z' }],
+      rootChangeId: 'chg_1',
+      severity: 'medium',
+      status: 'open',
     },
   ],
 ] as const;

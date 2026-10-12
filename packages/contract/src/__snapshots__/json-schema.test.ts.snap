@@ -145,6 +145,104 @@ exports[`exportJsonSchemas > locks the exported shapes 1`] = `
     ],
     "type": "object",
   },
+  "LinkageGap": {
+    "$schema": "https://json-schema.org/draft/2020-12/schema",
+    "additionalProperties": false,
+    "properties": {
+      "causedByGapId": {
+        "minLength": 1,
+        "type": "string",
+      },
+      "description": {
+        "minLength": 1,
+        "type": "string",
+      },
+      "evidence": {
+        "items": {
+          "additionalProperties": false,
+          "properties": {
+            "changedAt": {
+              "format": "date-time",
+              "pattern": "^(?:(?:\\d\\d[2468][048]|\\d\\d[13579][26]|\\d\\d0[48]|[02468][048]00|[13579][26]00)-02-29|\\d{4}-(?:(?:0[13578]|1[02])-(?:0[1-9]|[12]\\d|3[01])|(?:0[469]|11)-(?:0[1-9]|[12]\\d|30)|(?:02)-(?:0[1-9]|1\\d|2[0-8])))T(?:(?:[01]\\d|2[0-3]):[0-5]\\d:[0-5]\\d(?:\\.\\d+)?(?:Z))$",
+              "type": "string",
+            },
+            "path": {
+              "minLength": 1,
+              "type": "string",
+            },
+            "projectId": {
+              "minLength": 1,
+              "type": "string",
+            },
+          },
+          "required": [
+            "projectId",
+            "path",
+            "changedAt",
+          ],
+          "type": "object",
+        },
+        "minItems": 1,
+        "type": "array",
+      },
+      "id": {
+        "minLength": 1,
+        "type": "string",
+      },
+      "impact": {
+        "minLength": 1,
+        "type": "string",
+      },
+      "relationId": {
+        "minLength": 1,
+        "type": "string",
+      },
+      "rootChangeId": {
+        "minLength": 1,
+        "type": "string",
+      },
+      "severity": {
+        "enum": [
+          "high",
+          "medium",
+          "low",
+        ],
+        "type": "string",
+      },
+      "signal": {
+        "enum": [
+          "privacy_policy",
+          "version_release",
+          "app_metadata",
+          "permission_manifest",
+          "api_contract",
+          "dependency_major",
+          "entry_link",
+        ],
+        "type": "string",
+      },
+      "status": {
+        "enum": [
+          "open",
+          "resolved",
+          "dismissed",
+        ],
+        "type": "string",
+      },
+    },
+    "required": [
+      "id",
+      "relationId",
+      "signal",
+      "description",
+      "impact",
+      "evidence",
+      "rootChangeId",
+      "severity",
+      "status",
+    ],
+    "type": "object",
+  },
   "Milestone": {
     "$schema": "https://json-schema.org/draft/2020-12/schema",
     "additionalProperties": false,
@@ -266,6 +364,122 @@ exports[`exportJsonSchemas > locks the exported shapes 1`] = `
       "cadence",
       "constraints",
       "agents",
+    ],
+    "type": "object",
+  },
+  "ProjectRelation": {
+    "$schema": "https://json-schema.org/draft/2020-12/schema",
+    "additionalProperties": false,
+    "properties": {
+      "createdAt": {
+        "format": "date-time",
+        "pattern": "^(?:(?:\\d\\d[2468][048]|\\d\\d[13579][26]|\\d\\d0[48]|[02468][048]00|[13579][26]00)-02-29|\\d{4}-(?:(?:0[13578]|1[02])-(?:0[1-9]|[12]\\d|3[01])|(?:0[469]|11)-(?:0[1-9]|[12]\\d|30)|(?:02)-(?:0[1-9]|1\\d|2[0-8])))T(?:(?:[01]\\d|2[0-3]):[0-5]\\d:[0-5]\\d(?:\\.\\d+)?(?:Z))$",
+        "type": "string",
+      },
+      "id": {
+        "minLength": 1,
+        "type": "string",
+      },
+      "inferredFrom": {
+        "items": {
+          "minLength": 1,
+          "type": "string",
+        },
+        "type": "array",
+      },
+      "kind": {
+        "enum": [
+          "app-to-product-page",
+          "product-page-to-portal",
+          "api-to-docs",
+          "lib-to-consumers",
+          "custom",
+        ],
+        "type": "string",
+      },
+      "origin": {
+        "enum": [
+          "inferred",
+          "manual",
+        ],
+        "type": "string",
+      },
+      "rules": {
+        "items": {
+          "additionalProperties": false,
+          "properties": {
+            "enabled": {
+              "type": "boolean",
+            },
+            "signal": {
+              "enum": [
+                "privacy_policy",
+                "version_release",
+                "app_metadata",
+                "permission_manifest",
+                "api_contract",
+                "dependency_major",
+                "entry_link",
+              ],
+              "type": "string",
+            },
+          },
+          "required": [
+            "signal",
+            "enabled",
+          ],
+          "type": "object",
+        },
+        "type": "array",
+      },
+      "sourceProjectId": {
+        "minLength": 1,
+        "type": "string",
+      },
+      "sourceRole": {
+        "enum": [
+          "app",
+          "product-page",
+          "portal",
+          "api",
+          "docs",
+          "lib",
+        ],
+        "type": "string",
+      },
+      "status": {
+        "enum": [
+          "draft",
+          "active",
+          "paused",
+        ],
+        "type": "string",
+      },
+      "targetProjectId": {
+        "minLength": 1,
+        "type": "string",
+      },
+      "targetRole": {
+        "enum": [
+          "app",
+          "product-page",
+          "portal",
+          "api",
+          "docs",
+          "lib",
+        ],
+        "type": "string",
+      },
+    },
+    "required": [
+      "id",
+      "sourceProjectId",
+      "targetProjectId",
+      "kind",
+      "rules",
+      "origin",
+      "status",
+      "createdAt",
     ],
     "type": "object",
   },
