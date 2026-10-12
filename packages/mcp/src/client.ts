@@ -100,14 +100,24 @@ export interface HelmApiConfig {
   token: string;
   /** Injectable for tests; defaults to global fetch. */
   fetch?: typeof fetch;
+  /** Per-request timeout in ms (default 30 000); timeouts map to network errors. */
+  timeoutMs?: number;
 }
+
+/** Default per-request timeout: a hung data plane must not hang the agent. */
+const DEFAULT_TIMEOUT_MS = 30_000;
 
 export function clientConfigFromEnv(env: {
   HELM_API_URL?: string;
   HELM_API_TOKEN?: string;
 }): HelmApiConfig {
+  // A whitespace-only URL counts as unset (same discipline as the token).
+  const configuredUrl = (env.HELM_API_URL ?? '').trim();
   return {
-    apiBaseUrl: (env.HELM_API_URL ?? 'http://localhost:3000').replace(/\/+$/, ''),
+    apiBaseUrl: (configuredUrl === '' ? 'http://localhost:3000' : configuredUrl).replace(
+      /\/+$/,
+      '',
+    ),
     token: env.HELM_API_TOKEN ?? '',
   };
 }
@@ -124,11 +134,13 @@ export class HelmApiClient implements HelmApi {
   private readonly fetchFn: typeof fetch;
   private readonly base: string;
   private readonly token: string;
+  private readonly timeoutMs: number;
 
   constructor(config: HelmApiConfig) {
     this.fetchFn = config.fetch ?? fetch;
     this.base = config.apiBaseUrl.replace(/\/+$/, '');
     this.token = config.token;
+    this.timeoutMs = config.timeoutMs ?? DEFAULT_TIMEOUT_MS;
   }
 
   fetchBoard(): Promise<Board> {
@@ -166,6 +178,7 @@ export class HelmApiClient implements HelmApi {
     try {
       response = await this.fetchFn(`${this.base}${path}`, {
         headers: { Authorization: `Bearer ${this.token}` },
+        signal: AbortSignal.timeout(this.timeoutMs),
       });
     } catch {
       throw new HelmNetworkError(this.base);

@@ -82,17 +82,6 @@ export interface ProjectContext {
 
 export type ProjectContextResult = ProjectContext | ProjectNotTracked;
 
-function activeRelationsInvolving(
-  relations: readonly ProjectRelation[],
-  projectId: string,
-): ProjectRelation[] {
-  return relations.filter(
-    (relation) =>
-      relation.status === 'active' &&
-      (relation.sourceProjectId === projectId || relation.targetProjectId === projectId),
-  );
-}
-
 function toContextRelation(
   relation: ProjectRelation,
   direction: 'source' | 'target',
@@ -118,8 +107,10 @@ function toContextRelation(
 }
 
 /**
- * Build the context payload. Relation gaps are fetched once per relation and
- * shared between the two endpoint projects in the all-projects view; a gap
+ * Build the context payload. Scoping happens BEFORE gap fetching: a
+ * repo-scoped context only pays for the relations that actually touch the
+ * scoped projects, and gaps are fetched once per relevant relation and
+ * shared between the two endpoint projects in the all-projects view. A gap
  * fetch failure surfaces as a tool error — a half-context is worse than a
  * loud failure.
  */
@@ -129,34 +120,37 @@ export async function buildProjectContext(
 ): Promise<ProjectContextResult> {
   const board = await client.fetchBoard();
 
-  if (options.repo !== undefined) {
-    const matches = board.projects.filter((project) => project.repo === options.repo);
-    if (matches.length === 0) {
-      return {
-        tracked: false,
-        repo: options.repo,
-        message: `project not tracked: no board project has repo "${options.repo}"`,
-      };
-    }
+  const scoped =
+    options.repo === undefined
+      ? board.projects
+      : board.projects.filter((project) => project.repo === options.repo);
+  if (options.repo !== undefined && scoped.length === 0) {
+    return {
+      tracked: false,
+      repo: options.repo,
+      message: `project not tracked: no board project has repo "${options.repo}"`,
+    };
   }
 
   const projectById = new Map(board.projects.map((project) => [project.id, project]));
+  const scopedIds = new Set(scoped.map((project) => project.id));
   const relations = await client.fetchRelations();
-  const activeRelations = relations.filter((relation) => relation.status === 'active');
+  // Active relations touching a scoped project; already narrowed to the
+  // scope so gap fetches do not run for relations nothing below will use.
+  const relevantRelations = relations.filter(
+    (relation) =>
+      relation.status === 'active' &&
+      (scopedIds.has(relation.sourceProjectId) || scopedIds.has(relation.targetProjectId)),
+  );
 
   const gapsByRelation = new Map<string, LinkageGap[]>();
-  for (const relation of activeRelations) {
+  for (const relation of relevantRelations) {
     const response = await client.fetchOpenGapGroups(relation.id);
     gapsByRelation.set(
       relation.id,
       response.groups.flatMap((group) => group.gaps),
     );
   }
-
-  const scoped =
-    options.repo === undefined
-      ? board.projects
-      : board.projects.filter((project) => project.repo === options.repo);
 
   const projects: ContextProject[] = scoped.map((project) => ({
     id: project.id,
@@ -169,11 +163,19 @@ export async function buildProjectContext(
     ci: project.ci,
     milestones: project.milestones,
     risks: project.risks,
-    relations: activeRelationsInvolving(activeRelations, project.id).map((relation) =>
-      relation.sourceProjectId === project.id
-        ? toContextRelation(relation, 'source', projectById, gapsByRelation.get(relation.id) ?? [])
-        : toContextRelation(relation, 'target', projectById, gapsByRelation.get(relation.id) ?? []),
-    ),
+    relations: relevantRelations.flatMap((relation) => {
+      if (relation.sourceProjectId === project.id) {
+        return [
+          toContextRelation(relation, 'source', projectById, gapsByRelation.get(relation.id) ?? []),
+        ];
+      }
+      if (relation.targetProjectId === project.id) {
+        return [
+          toContextRelation(relation, 'target', projectById, gapsByRelation.get(relation.id) ?? []),
+        ];
+      }
+      return [];
+    }),
   }));
 
   const briefing = await client.fetchLatestBriefing();

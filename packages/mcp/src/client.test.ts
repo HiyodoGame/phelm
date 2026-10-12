@@ -1,6 +1,7 @@
 import { describe, expect, it, vi } from 'vitest';
 import {
   briefingSchema,
+  clientConfigFromEnv,
   HelmApiClient,
   HelmNetworkError,
   HelmNotFoundError,
@@ -112,12 +113,13 @@ const briefingPayload = {
 
 function makeClient(
   fetchFn: typeof fetch,
-  options: { token?: string; apiBaseUrl?: string } = {},
+  options: { token?: string; apiBaseUrl?: string; timeoutMs?: number } = {},
 ): HelmApiClient {
   return new HelmApiClient({
     apiBaseUrl: options.apiBaseUrl ?? 'http://api.test',
     token: options.token ?? 'secret-token',
     fetch: fetchFn,
+    ...(options.timeoutMs === undefined ? {} : { timeoutMs: options.timeoutMs }),
   });
 }
 
@@ -200,6 +202,28 @@ describe('HelmApiClient', () => {
       vi.fn<typeof fetch>().mockResolvedValue(okResponse({ nope: true })),
     );
     await expect(wrongShape.fetchBoard()).rejects.toBeInstanceOf(HelmUnexpectedResponseError);
+  });
+
+  it('maps a request that outlives its AbortSignal timeout to a network error', async () => {
+    // A fetch that ignores resolution and only honors the abort signal —
+    // what a hung connection does in reality.
+    const hungFetch = vi.fn<typeof fetch>().mockImplementation((_url, init) => {
+      return new Promise<Response>((_resolve, reject) => {
+        init?.signal?.addEventListener('abort', () => reject(new Error('aborted')));
+      });
+    });
+    const client = makeClient(hungFetch, { timeoutMs: 20 });
+    await expect(client.fetchBoard()).rejects.toBeInstanceOf(HelmNetworkError);
+  });
+
+  it('treats a whitespace-only HELM_API_URL as unset (default base URL)', async () => {
+    const fetchFn = vi.fn<typeof fetch>().mockResolvedValue(okResponse(boardPayload));
+    const client = new HelmApiClient({
+      ...clientConfigFromEnv({ HELM_API_URL: '   ', HELM_API_TOKEN: 't' }),
+      fetch: fetchFn,
+    });
+    await client.fetchBoard();
+    expect(fetchFn.mock.calls[0]?.[0]).toBe('http://localhost:3000/board');
   });
 
   it('answers a missing token with the clean token-not-configured error before any request', async () => {

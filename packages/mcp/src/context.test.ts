@@ -177,6 +177,19 @@ describe('buildProjectContext', () => {
     expect(context.projects[0]?.relations[0]?.direction).toBe('target');
   });
 
+  it('fetches gaps only for relations that touch the scoped project (no N+2 rounds)', async () => {
+    const unrelated = {
+      ...relation,
+      id: 'rel_2',
+      sourceProjectId: 'prj_page',
+      targetProjectId: 'prj_other',
+    };
+    const api = makeFakeApi({ relations: [relation, unrelated] });
+    const context = await buildProjectContext(api, { repo: 'acme/companion-app' });
+    expect(api.gapCalls).toEqual(['rel_1']);
+    expect(context.tracked).toBe(true);
+  });
+
   it('answers an untracked repo with the explicit not-tracked result and reads nothing else', async () => {
     const api = makeFakeApi();
     const context = await buildProjectContext(api, { repo: 'acme/ghost' });

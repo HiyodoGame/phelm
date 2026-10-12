@@ -63,7 +63,7 @@ is persisted yet).
 1. **Neutral above agents** — not competing with any coding agent; the more agents you use, the more valuable the management layer.
 2. **Evidence over vibes** — every risk and suggestion cites PR/commit/CI links; conclusions without evidence are discarded.
 3. **Human-in-the-loop** — plan changes ship as proposals you approve, not silent mutations.
-4. **Least privilege by default** — the MCP server is read + report only; no repo write access; every call is audited. (We care about MCP security — see [SECURITY.md](SECURITY.md).)
+4. **Least privilege by default** — the MCP server is read + report only; no repo write access. Requests are token-gated, and the server-side audit log lands in an upcoming release. (We care about MCP security — see [SECURITY.md](SECURITY.md).)
 
 ## Getting started (CLI)
 

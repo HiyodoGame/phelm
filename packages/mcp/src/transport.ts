@@ -17,9 +17,16 @@ import { createPhelmMcpServer, type PhelmMcpDeps } from './server.js';
  * HTTP mode is stateless (no session ids): each request gets a fresh
  * transport and server instance, so concurrent requests never share state
  * and a server restart needs no session cleanup. It binds the loopback
- * interface only — the v1 server is a local companion to the Helm Agent
- * API and carries no authentication of its own (the dedicated MCP token +
- * audit land in T-0025); do not expose it beyond localhost.
+ * interface only, and enables the SDK's DNS-rebinding protection with a
+ * strict Host allowlist (`127.0.0.1:<port>` / `localhost:<port>`) — a
+ * loopback bind alone does not stop a rebinding page, whose requests carry
+ * the attacker's Host header. Requests bearing an Origin header are
+ * rejected outright in the listener: MCP over loopback serves non-browser
+ * clients only (SDK clients and the Inspector CLI send no Origin), so any
+ * Origin is either a rebinding page or a CSRF attempt. The v1 server
+ * proxies the token-gated Helm Agent API and carries no auth of its own
+ * (the dedicated MCP token + audit land in T-0025); do not expose it
+ * beyond localhost.
  */
 
 export type TransportArgs = { mode: 'stdio' } | { mode: 'http'; port: number };
@@ -43,12 +50,16 @@ Environment:
                    error when it is missing)`;
 
 export function parseTransportArgs(argv: readonly string[]): TransportArgs {
+  let http: { port: number } | undefined;
   for (let index = 0; index < argv.length; index += 1) {
     const arg = argv[index] ?? '';
     if (arg === '--help' || arg === '-h') {
       throw new UsageError(USAGE);
     }
     if (arg === '--http' || arg.startsWith('--http=')) {
+      if (http !== undefined) {
+        throw new UsageError('--http was given more than once\n\n' + USAGE);
+      }
       const raw = arg === '--http' ? argv[index + 1] : arg.slice('--http='.length);
       if (raw === undefined || raw === '') {
         throw new UsageError('--http requires a port number\n\n' + USAGE);
@@ -57,11 +68,17 @@ export function parseTransportArgs(argv: readonly string[]): TransportArgs {
       if (!Number.isInteger(port) || port < 1 || port > 65535) {
         throw new UsageError(`--http port must be an integer between 1 and 65535, got "${raw}"`);
       }
-      return { mode: 'http', port };
+      if (arg === '--http') {
+        // Consume the value so the loop keeps validating the REST of the
+        // argv (`--http 3000 junk` must fail on "junk", not swallow it).
+        index += 1;
+      }
+      http = { port };
+      continue;
     }
     throw new UsageError(`unknown argument "${arg}"\n\n` + USAGE);
   }
-  return { mode: 'stdio' };
+  return http === undefined ? { mode: 'stdio' } : { mode: 'http', port: http.port };
 }
 
 /** Default logger: stderr only, never stdout (the stdio protocol stream). */
@@ -79,17 +96,35 @@ export async function runStdio(deps: PhelmMcpDeps): Promise<void> {
 /** Maximum accepted HTTP body size: MCP messages are small; refuse more. */
 const MAX_BODY_BYTES = 1024 * 1024;
 
+/**
+ * Client-side body failure: malformed JSON or an oversized body. Both are
+ * the sender's fault and answer as a JSON-RPC parse error (400 / -32700) —
+ * distinct from an unexpected server-side failure (500 / -32603).
+ */
+export class JsonBodyError extends Error {
+  constructor(message: string) {
+    super(message);
+    this.name = 'JsonBodyError';
+  }
+}
+
 async function readJsonBody(request: IncomingMessage): Promise<unknown> {
   const chunks: Buffer[] = [];
   let size = 0;
   for await (const chunk of request) {
     size += (chunk as Buffer).length;
     if (size > MAX_BODY_BYTES) {
-      throw new Error('request body too large');
+      throw new JsonBodyError('request body too large');
     }
     chunks.push(chunk as Buffer);
   }
-  return JSON.parse(Buffer.concat(chunks).toString('utf8'));
+  let parsed: unknown;
+  try {
+    parsed = JSON.parse(Buffer.concat(chunks).toString('utf8'));
+  } catch {
+    throw new JsonBodyError('malformed JSON body');
+  }
+  return parsed;
 }
 
 function httpErrorResponse(
@@ -109,41 +144,65 @@ function httpErrorResponse(
 /**
  * One stateless request: a fresh server + transport pair answers it, so no
  * mutable state is shared across requests. (The per-request pair is the
- * SDK's documented stateless pattern.)
+ * SDK's documented stateless pattern.) `port` feeds the DNS-rebinding
+ * allowlist — the Host header must name this exact listener.
  */
 async function handleHttpRequest(
   request: IncomingMessage,
   response: ServerResponse,
   deps: PhelmMcpDeps,
+  port: number,
+  parsedBody: unknown,
 ): Promise<void> {
-  const transport = new StreamableHTTPServerTransport({ sessionIdGenerator: undefined });
-  response.on('close', () => {
-    transport.close().catch(() => undefined);
+  const transport = new StreamableHTTPServerTransport({
+    sessionIdGenerator: undefined,
+    enableDnsRebindingProtection: true,
+    allowedHosts: [`127.0.0.1:${port}`, `localhost:${port}`],
+    allowedOrigins: [],
   });
   const server = createPhelmMcpServer(deps);
+  response.on('close', () => {
+    transport.close().catch(() => undefined);
+    server.close().catch(() => undefined);
+  });
   await server.connect(transport);
-  if (request.method === 'POST') {
-    const body = await readJsonBody(request);
-    await transport.handleRequest(request, response, body);
+  if (request.method === 'POST' && parsedBody !== undefined) {
+    await transport.handleRequest(request, response, parsedBody);
   } else {
     await transport.handleRequest(request, response);
   }
 }
 
 /** The HTTP request listener: only POST/GET/DELETE on `/mcp` are MCP traffic. */
-export function createHttpListener(deps: PhelmMcpDeps): RequestListener {
+export function createHttpListener(deps: PhelmMcpDeps, port: number): RequestListener {
   return async (request, response) => {
     try {
       if (request.url !== '/mcp') {
         httpErrorResponse(response, 404, -32601, 'not found; the MCP endpoint is /mcp');
         return;
       }
-      await handleHttpRequest(request, response, deps);
-    } catch {
-      // Body-level failures (too large, malformed JSON) answer as a JSON-RPC
-      // parse error; anything else is an internal error. Protocol errors
-      // inside the transport never reach here (it writes its own responses).
-      httpErrorResponse(response, 400, -32700, 'parse error');
+      if (request.headers.origin !== undefined) {
+        // See the module comment: any browser Origin is an attack signal.
+        httpErrorResponse(
+          response,
+          403,
+          -32000,
+          'browser-originated requests are not allowed on this endpoint',
+        );
+        return;
+      }
+      const parsedBody = request.method === 'POST' ? await readJsonBody(request) : undefined;
+      await handleHttpRequest(request, response, deps, port, parsedBody);
+    } catch (error) {
+      // Body-level client failures answer as a JSON-RPC parse error;
+      // anything else is an unexpected internal failure with its own code.
+      // Protocol errors inside the transport never reach here (it writes
+      // its own responses).
+      if (error instanceof JsonBodyError) {
+        httpErrorResponse(response, 400, -32700, 'parse error');
+      } else {
+        httpErrorResponse(response, 500, -32603, 'internal error');
+      }
     }
   };
 }
@@ -154,11 +213,15 @@ export function createHttpListener(deps: PhelmMcpDeps): RequestListener {
  * start; otherwise it keeps serving until the caller closes it.
  */
 export async function runHttp(deps: PhelmMcpDeps, port: number): Promise<http.Server> {
-  const httpServer = http.createServer(createHttpListener(deps));
+  const httpServer = http.createServer();
   return new Promise<http.Server>((resolve, reject) => {
     httpServer.once('error', reject);
     httpServer.listen(port, '127.0.0.1', () => {
-      stderrLog(`[phelm-mcp] http transport listening on http://127.0.0.1:${port}/mcp`);
+      // The allowlist needs the BOUND port (tests use ephemeral ports), so
+      // the request listener is attached only after bind.
+      const boundPort = (httpServer.address() as { port: number }).port;
+      httpServer.on('request', createHttpListener(deps, boundPort));
+      stderrLog(`[phelm-mcp] http transport listening on http://127.0.0.1:${boundPort}/mcp`);
       resolve(httpServer);
     });
   });

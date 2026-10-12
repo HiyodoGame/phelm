@@ -1,6 +1,6 @@
 import { Client } from '@modelcontextprotocol/sdk/client/index.js';
 import { InMemoryTransport } from '@modelcontextprotocol/sdk/inMemory.js';
-import { afterEach, describe, expect, it, vi } from 'vitest';
+import { describe, expect, it, vi } from 'vitest';
 import type { HelmApi } from './client.js';
 import { createPhelmMcpServer } from './server.js';
 
@@ -32,17 +32,6 @@ async function listToolSchemas(deps = { client: noopApi }) {
     await server.close();
   }
 }
-
-interface RecordedServer {
-  close(): Promise<void>;
-}
-
-let openServers: RecordedServer[] = [];
-
-afterEach(async () => {
-  await Promise.all(openServers.map((server) => server.close()));
-  openServers = [];
-});
 
 describe('tool schema contract', () => {
   it('contract: registers exactly the three consultative tools', async () => {

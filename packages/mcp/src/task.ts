@@ -22,20 +22,6 @@ import type { Board, BoardProject, HelmApi, LinkageGap } from './client.js';
  * of fabricating a link.
  */
 
-export interface AdvisoryTask {
-  gapId: string;
-  signal: string;
-  severity: 'high' | 'medium' | 'low';
-  description: string;
-  impact: string;
-  /** Repo of the resolved action evidence; null when unresolvable. */
-  repo: string | null;
-  /** Path of the resolved action evidence; null when unresolvable. */
-  path: string | null;
-  /** GitHub blob URL for the action evidence; null when unresolvable. */
-  actionUrl: string | null;
-}
-
 /** Advisory with a task: the spec's flat advisory description. */
 export interface AdvisoryWithTask {
   advisory: true;

@@ -19,6 +19,14 @@ describe('parseTransportArgs', () => {
     expect(() => parseTransportArgs(['--http', '65536'])).toThrow(UsageError);
   });
 
+  it('rejects trailing junk after --http <port> instead of swallowing it', () => {
+    expect(() => parseTransportArgs(['--http', '3000', 'junk'])).toThrow(/unknown argument "junk"/);
+    expect(() => parseTransportArgs(['--http=3000', '--other'])).toThrow(UsageError);
+    expect(() => parseTransportArgs(['--http', '3000', '--http', '4000'])).toThrow(
+      /more than once/,
+    );
+  });
+
   it('rejects unknown arguments', () => {
     expect(() => parseTransportArgs(['--serve'])).toThrow(/unknown argument "--serve"/);
   });

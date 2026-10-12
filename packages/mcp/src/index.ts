@@ -36,7 +36,6 @@ export {
 } from './context.js';
 export {
   type AdvisoryResult,
-  type AdvisoryTask,
   type AdvisoryWithTask,
   type AdvisoryWithoutTask,
   buildAdvisory,
