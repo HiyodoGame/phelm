@@ -35,19 +35,28 @@ The cloud orchestration service, web dashboard and the HarmonyOS app live in a p
 ### Use the MCP server (once available)
 
 ```jsonc
-// e.g. in your agent's MCP config
+// e.g. in your agent's MCP config (Cursor, ZCode, ...)
 {
   "mcpServers": {
     "phelm": {
       "command": "npx",
       "args": ["-y", "@phelm/mcp"],
-      "env": { "PHELM_TOKEN": "<your token>" }
+      "env": {
+        "HELM_API_URL": "http://localhost:3000",
+        "HELM_API_TOKEN": "<your Helm Agent API token>"
+      }
     }
   }
 }
 ```
 
-Your agent can then ask "what should I work on?" (`get_task`), read project context (`get_project_context`), and report progress (`report_progress`) — which feeds back into your daily briefing.
+Or serve Streamable HTTP instead of stdio: `phelm-mcp --http 6280` (listens
+on `127.0.0.1` only, endpoint `/mcp`).
+
+Your agent can then ask "what should I work on?" (`get_task` — advisory: it
+suggests, it does not claim), read project context (`get_project_context`),
+and report progress (`report_progress` — v1 acknowledges and logs, nothing
+is persisted yet).
 
 ## Design principles
 
