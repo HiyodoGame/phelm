@@ -124,6 +124,34 @@ describe('phelm cli', () => {
     const names = program.commands.map((command) => command.name());
     expect(names).toEqual(expect.arrayContaining(['brief', 'today']));
   });
+
+  it('shows brief and today with their descriptions in --help output', async () => {
+    const help: string[] = [];
+    const outSpy = vi.spyOn(process.stdout, 'write').mockImplementation(((chunk: unknown) => {
+      help.push(String(chunk));
+      return true;
+    }) as typeof process.stdout.write);
+    // exitOverride makes commander throw instead of process.exit(0) on --help.
+    const program = createProgram(makeDeps());
+    program.exitOverride();
+    try {
+      await program.parseAsync(['--help'], { from: 'user' });
+      expect.unreachable('--help should stop parsing with helpDisplayed');
+    } catch (error) {
+      expect((error as { code?: string }).code).toBe('commander.helpDisplayed');
+    } finally {
+      outSpy.mockRestore();
+    }
+    // Commander wraps help text to the terminal width, so compare on
+    // whitespace-normalized text.
+    const text = help.join('').replace(/\s+/g, ' ');
+    expect(text).toContain('brief');
+    expect(text).toContain('today');
+    expect(text).toContain(
+      'Print the latest daily briefing (linkage gaps) from your Helm Agent server',
+    );
+    expect(text).toContain("Print today's briefing (UTC date; it is generated daily)");
+  });
 });
 
 describe('phelm login', () => {
@@ -276,6 +304,7 @@ describe('phelm today', () => {
 
   it('exits 1 with a hint on 404 and never falls back to the latest briefing', async () => {
     const capture = captureStreams();
+    let exitCode: typeof process.exitCode;
     try {
       const program = createProgram(
         makeDeps({
@@ -285,14 +314,15 @@ describe('phelm today', () => {
         }),
       );
       await run(program, ['today']);
+      exitCode = process.exitCode;
     } finally {
       capture.restore();
+      process.exitCode = 0;
     }
-    expect(process.exitCode).toBe(1);
+    expect(exitCode).toBe(1);
     expect(capture.err).toEqual([
       'no briefing generated for today yet (it is generated daily; try `phelm brief` for the latest)',
     ]);
     expect(capture.out).toEqual([]);
-    process.exitCode = 0;
   });
 });

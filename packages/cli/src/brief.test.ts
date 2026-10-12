@@ -1,4 +1,4 @@
-import { describe, expect, it } from 'vitest';
+import { describe, expect, it, vi } from 'vitest';
 import {
   BriefingError,
   BriefingNotFoundError,
@@ -121,9 +121,49 @@ describe('fetchLatestBriefing / fetchBriefingForDate', () => {
 });
 
 describe('utcToday', () => {
+  /** Temporarily move the process to another timezone, restoring afterwards. */
+  function withTimezone(tz: string, run: () => void): void {
+    const previousTz = process.env.TZ;
+    process.env.TZ = tz;
+    try {
+      run();
+    } finally {
+      if (previousTz === undefined) {
+        delete process.env.TZ;
+      } else {
+        process.env.TZ = previousTz;
+      }
+    }
+  }
+
   it('returns the current UTC date as YYYY-MM-DD', () => {
     expect(utcToday()).toMatch(/^\d{4}-\d{2}-\d{2}$/);
-    expect(utcToday()).toBe(new Date().toISOString().slice(0, 10));
+  });
+
+  it('stays on the UTC date when the local day has already rolled over (UTC+14)', () => {
+    vi.useFakeTimers();
+    vi.setSystemTime(Date.parse('2026-10-12T23:30:00Z'));
+    try {
+      withTimezone('Pacific/Kiritimati', () => {
+        // Local wall clock says 2026-10-13 13:30; the briefing day is still UTC.
+        expect(utcToday()).toBe('2026-10-12');
+      });
+    } finally {
+      vi.useRealTimers();
+    }
+  });
+
+  it('stays on the UTC date when the local day has not started yet (UTC-11)', () => {
+    vi.useFakeTimers();
+    vi.setSystemTime(Date.parse('2026-10-12T00:30:00Z'));
+    try {
+      withTimezone('Pacific/Niue', () => {
+        // Local wall clock says 2026-10-11 13:30; the briefing day is still UTC.
+        expect(utcToday()).toBe('2026-10-12');
+      });
+    } finally {
+      vi.useRealTimers();
+    }
   });
 });
 

@@ -23,7 +23,7 @@ It does not write code. It manages the agents that do.
 | Package | What it does |
 |---|---|
 | `packages/contract` | Zod schemas + TS types shared by every surface (Task Spec, events, snapshots, risks, proposals) |
-| `packages/cli` | `phelm` command line — `login`, `board`, `today`, `brief`, `runner` |
+| `packages/cli` | `phelm` command line — `login`, `board`, `today`, `brief` |
 | `packages/mcp` | MCP server exposing `get_task` / `report_progress` / `get_project_context` so any MCP-capable agent can pull tasks from (and report back to) Helm |
 
 The cloud orchestration service, web dashboard and the HarmonyOS app live in a private repository.
