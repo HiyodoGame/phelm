@@ -5,6 +5,7 @@ import { pathToFileURL } from 'node:url';
 import { Command } from 'commander';
 import { PHELM_CONTRACT_VERSION } from '@phelm/contract';
 import { clearRawCredentials, openConfig } from './config.js';
+import { fetchBoard, renderBoard } from './board.js';
 import { loadStoredToken, saveStoredToken } from './crypto.js';
 import { loginWithDeviceFlow } from './device-flow.js';
 import {
@@ -53,9 +54,22 @@ export function createProgram(deps: CliDeps = {}): Command {
 
   program
     .command('board')
-    .description('Show the current task board')
-    .action(() => {
-      console.log('not implemented yet');
+    .description('Show the board from your Helm Agent server (health, CI, milestones)')
+    .option('--api <url>', 'Helm Agent API base URL', env.PHELM_API_BASE ?? DEFAULT_API_BASE)
+    .option(
+      '--token <token>',
+      'Helm Agent API token (or set PHELM_API_TOKEN)',
+      env.PHELM_API_TOKEN ?? '',
+    )
+    .option('--json', 'Print the raw board JSON')
+    .action(async (options: { api: string; token: string; json?: boolean }) => {
+      const board = await fetchBoard({ apiBaseUrl: options.api, token: options.token });
+      if (options.json === true) {
+        console.log(JSON.stringify(board, null, 2));
+        return;
+      }
+      const colors = process.stdout.isTTY === true && env.NO_COLOR === undefined;
+      console.log(renderBoard(board, { colors }));
     });
 
   program
