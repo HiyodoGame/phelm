@@ -2,27 +2,28 @@ import { describe, expect, it } from 'vitest';
 import { LinkageGapSchema, ProjectRelationSchema } from './relation.js';
 
 const relation = {
-  id: 'rel-1',
-  sourceProjectId: 'prj-1',
-  targetProjectId: 'prj-2',
+  id: 'rel_1',
+  sourceProjectId: 'prj_1',
+  targetProjectId: 'prj_2',
   kind: 'app-to-product-page',
   sourceRole: 'app',
   targetRole: 'product-page',
   rules: [{ signal: 'version_release', enabled: true }],
   origin: 'inferred',
-  inferredFrom: ['issue-42'],
+  inferredFrom: ['issue_42'],
   status: 'draft',
   createdAt: '2026-10-10T08:00:00Z',
 };
 
 const gap = {
-  id: 'gap-1',
-  relationId: 'rel-1',
+  id: 'gap_1',
+  relationId: 'rel_1',
   signal: 'version_release',
   description: 'the portal entry still links to v2.2',
   impact: 'users reach an outdated release page',
-  evidence: [{ projectId: 'prj-2', path: 'docs/entry.md', changedAt: '2026-10-10T08:00:00Z' }],
-  rootChangeId: 'chg-1',
+  evidence: [{ projectId: 'prj_2', path: 'docs/entry.md', changedAt: '2026-10-10T08:00:00Z' }],
+  rootChangeId: 'chg_1',
+  detectedAt: '2026-10-10T09:30:00Z',
   severity: 'medium',
   status: 'open',
 };
@@ -71,8 +72,14 @@ describe('ProjectRelationSchema', () => {
 describe('LinkageGapSchema', () => {
   it('roundtrips a valid gap, with and without causedByGapId', () => {
     expect(LinkageGapSchema.parse(gap)).toEqual(gap);
-    const transitive = { ...gap, causedByGapId: 'gap-0' };
+    expect(LinkageGapSchema.parse(gap).detectedAt).toBe('2026-10-10T09:30:00Z');
+    const transitive = { ...gap, causedByGapId: 'gap_0' };
     expect(LinkageGapSchema.parse(transitive)).toEqual(transitive);
+  });
+
+  it('rejects a gap without or with a malformed detectedAt (detection time is mandatory)', () => {
+    expect(LinkageGapSchema.safeParse({ ...gap, detectedAt: undefined }).success).toBe(false);
+    expect(LinkageGapSchema.safeParse({ ...gap, detectedAt: '2026-10-10' }).success).toBe(false);
   });
 
   it('rejects unknown top-level and nested keys', () => {

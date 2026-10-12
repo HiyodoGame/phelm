@@ -63,14 +63,17 @@ export const ProjectRelationSchema = z
     targetRole: ProjectRoleSchema.optional(),
     /**
      * Per-signal rule switches. May be empty: a relation can be created
-     * first and configured with rules later.
+     * first and configured with rules later. At most one rule per signal;
+     * the storage layer (task T-0060) enforces deduplication because zod
+     * cannot express array uniqueness.
      */
     rules: z.array(RelationRuleSchema),
     /** How the relation came to be: inferred by phelm or created manually. */
     origin: z.enum(['inferred', 'manual']),
     /**
      * References the inference was based on (for example issue or file ids);
-     * explains "why recommended" in the UI. Present only for inferred relations.
+     * explains "why recommended" in the UI. Populated when origin is
+     * "inferred"; consumers should not rely on it otherwise.
      */
     inferredFrom: z.array(z.string().min(1)).optional(),
     status: z.enum(['draft', 'active', 'paused']),
@@ -101,6 +104,8 @@ export const LinkageGapSchema = z
     rootChangeId: z.string().min(1),
     /** Upstream gap in the impact chain, when this gap is transitive. */
     causedByGapId: z.string().min(1).optional(),
+    /** When the gap was first recorded (server clock at detection). */
+    detectedAt: TimestampSchema,
     severity: z.enum(['high', 'medium', 'low']),
     status: z.enum(['open', 'resolved', 'dismissed']),
   })

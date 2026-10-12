@@ -189,6 +189,7 @@ const cases = [
       impact: 'users reach an outdated release page',
       evidence: [{ projectId: 'prj_2', path: 'docs/entry.md', changedAt: '2026-10-10T08:00:00Z' }],
       rootChangeId: 'chg_1',
+      detectedAt: '2026-10-10T09:30:00Z',
       severity: 'medium',
       status: 'open',
     },
