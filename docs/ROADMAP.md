@@ -5,10 +5,11 @@ High-level public roadmap. Detailed planning lives in the private repository; th
 ## Now — P0: the brain, CLI & MCP (weeks 1-4)
 
 - [x] Monorepo scaffold + CI
-- [x] `packages/contract` — shared schemas (Task Spec, events, snapshots, risks, proposals)
+- [x] `packages/contract` — shared schemas (Task Spec, events, snapshots, risks, proposals, project relations & linkage gaps)
 - [x] `phelm login` (GitHub device flow, encrypted local token) + `phelm repos` (list / import)
-- [ ] GitHub App ingestion (commits/PRs/issues/CI → unified events → project snapshots)
-- [ ] Project charter with AI-drafted goals & milestones
+- [x] GitHub App ingestion (commits/PRs/issues/CI → unified events → project snapshots)
+- [x] Project charter with AI-drafted goals & milestones
+- [ ] Project linkage — relations between repos, high-signal change detection, linkage gaps ("App changed, did the site follow?")
 - [ ] Health scoring + 6 risk rule types (stalled / red CI / slipping / drift / conflict / quality)
 - [ ] Daily briefing (email / Feishu webhook) + `phelm today` / `phelm brief` / `phelm board`
 - [ ] MCP server: `get_task` / `report_progress` / `get_project_context`
