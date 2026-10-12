@@ -264,8 +264,23 @@ describe('stdio transport smoke (built bin)', () => {
     }
   });
 
-  it('logs the ready line (and only work logs) on stderr', () => {
+  it('logs the ready line (and only work logs) on stderr', async () => {
+    // The tool log is written before its response is sent, but delivery of
+    // the stderr data event can lag the stdout response on slow machines —
+    // wait for it instead of racing it.
+    await waitFor(() => stderrText.includes('stdio transport ready'));
+    await waitFor(() => stderrText.includes('report_progress'));
     expect(stderrText).toContain('stdio transport ready');
     expect(stderrText).toContain('report_progress');
   });
 });
+
+async function waitFor(predicate: () => boolean, timeoutMs = 5_000): Promise<void> {
+  const deadline = Date.now() + timeoutMs;
+  while (!predicate()) {
+    if (Date.now() > deadline) {
+      throw new Error(`condition not met within ${timeoutMs}ms`);
+    }
+    await new Promise((resolve) => setTimeout(resolve, 25));
+  }
+}
