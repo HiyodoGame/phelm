@@ -119,6 +119,7 @@ function makeFakeApi(options: FakeOptions = {}): HelmApi & {
       options.briefing === null
         ? vi.fn().mockResolvedValue(null)
         : vi.fn().mockResolvedValue(options.briefing ?? briefing),
+    reportProgress: vi.fn().mockResolvedValue({ received: true, audited: true }),
   };
 }
 

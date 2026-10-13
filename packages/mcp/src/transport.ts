@@ -23,10 +23,10 @@ import { createPhelmMcpServer, type PhelmMcpDeps } from './server.js';
  * the attacker's Host header. Requests bearing an Origin header are
  * rejected outright in the listener: MCP over loopback serves non-browser
  * clients only (SDK clients and the Inspector CLI send no Origin), so any
- * Origin is either a rebinding page or a CSRF attempt. The v1 server
- * proxies the token-gated Helm Agent API and carries no auth of its own
- * (the dedicated MCP token + audit land in T-0025); do not expose it
- * beyond localhost.
+ * Origin is either a rebinding page or a CSRF attempt. The server proxies
+ * reads and reports that the Helm Agent API gates with an MCP connection
+ * token and records in its server-side audit log (T-0025); it still carries
+ * no auth of its own, so do not expose it beyond localhost.
  */
 
 export type TransportArgs = { mode: 'stdio' } | { mode: 'http'; port: number };
@@ -233,7 +233,12 @@ export function depsFromEnv(
   log?: (line: string) => void,
 ): PhelmMcpDeps {
   return {
-    client: new HelmApiClient(clientConfigFromEnv(env)),
+    client: new HelmApiClient({
+      ...clientConfigFromEnv(env),
+      // Share the tool logger so client-side events (e.g. the degraded
+      // report fallback) land on the same stderr stream.
+      ...(log === undefined ? {} : { log }),
+    }),
     ...(log === undefined ? {} : { log }),
   };
 }

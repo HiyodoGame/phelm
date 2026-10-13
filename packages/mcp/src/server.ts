@@ -9,10 +9,11 @@ import { buildAdvisory } from './task.js';
  * The phelm MCP server (T-0024): three consultative tools over the Helm
  * Agent data plane — `get_project_context` (snapshot + linkage context),
  * `get_task` (advisory next work item) and `report_progress` (validated
- * acknowledgment). Read-only + report: no tool mutates server state, and
- * `report_progress` persists nothing in v1 (the audit log lands in T-0025) —
- * both boundaries are stated in the tool descriptions so agents reading the
- * tool list know them before calling.
+ * report persisted server-side to the audit log, T-0025; a server predating
+ * the intake endpoint falls back to the v1 local receipt with
+ * `degraded: true`). Read-only + report: no tool mutates server state — the
+ * boundary is stated in the tool descriptions so agents reading the tool
+ * list know it before calling.
  */
 
 export interface PhelmMcpDeps {
@@ -96,18 +97,23 @@ export function createPhelmMcpServer(deps: PhelmMcpDeps): McpServer {
       description:
         'Report progress on a linkage gap back to Helm, e.g. after an agent picked up a get_task ' +
         'advisory. Inputs: status (required, one of "in_progress" | "done" | "blocked"), gapId ' +
-        '(optional, the gap the progress refers to) and note (optional, free text). v1 boundary: ' +
-        'the server only validates the report and answers with a structured acknowledgment — ' +
-        'NOTHING is persisted and no server state changes (the server-side audit log lands in a ' +
-        'later task, T-0025); treat the acknowledgment as a receipt, not a record.',
+        '(optional, the gap the progress refers to) and note (optional, free text). The report ' +
+        'is validated and PERSISTED SERVER-SIDE: an accepted report lands in the Helm Agent ' +
+        'audit log (which connection token reported what, when) before the acknowledgment is ' +
+        'returned. When the connected server predates this endpoint the tool answers with ' +
+        '"degraded": true — a receipt only, nothing is stored.',
+      // Caps mirror the api's POST /mcp/reports body one-to-one: the payload
+      // lands in the server-side audit jsonb, so an unbounded note would be
+      // a storage-exhaustion amplifier. Keep both sides in lockstep.
       inputSchema: z.strictObject({
-        gapId: z.string().min(1).optional(),
+        gapId: z.string().min(1).max(64).optional(),
         status: z.enum(['in_progress', 'done', 'blocked']),
-        note: z.string().min(1).optional(),
+        note: z.string().min(1).max(2000).optional(),
       }),
     },
     async (args) => {
-      // Structured stderr log only: no persistence, no server write (v1).
+      // Structured stderr log of the attempt (local record only — the
+      // server-side record is the audit log the client reports into).
       log(
         JSON.stringify({
           event: 'report_progress',
@@ -116,10 +122,12 @@ export function createPhelmMcpServer(deps: PhelmMcpDeps): McpServer {
           noteLength: args.note?.length ?? 0,
         }),
       );
-      return textResult({
-        received: true,
-        audit: 'server-side audit log lands in T-0025; nothing is persisted yet',
-      });
+      try {
+        const result = await deps.client.reportProgress(args);
+        return textResult(result);
+      } catch (error) {
+        return { content: [{ type: 'text', text: toolErrorMessage(error) }], isError: true };
+      }
     },
   );
 

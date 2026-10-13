@@ -17,6 +17,7 @@ const noopApi: HelmApi = {
   fetchRelations: vi.fn().mockResolvedValue([]),
   fetchOpenGapGroups: vi.fn().mockResolvedValue({ groups: [], total: 0 }),
   fetchLatestBriefing: vi.fn().mockResolvedValue(null),
+  reportProgress: vi.fn().mockResolvedValue({ received: true, audited: true }),
 };
 
 async function listToolSchemas(deps = { client: noopApi }) {
@@ -63,15 +64,16 @@ describe('tool schema contract', () => {
     expect(schema.required === undefined || (schema.required as string[]).length === 0).toBe(true);
   });
 
-  it('contract: report_progress input pins gapId?/status/note? with the status enum', async () => {
+  it('contract: report_progress input pins gapId?/status/note? with the status enum and length caps', async () => {
     const tools = await listToolSchemas();
     const schema = tools.report_progress?.inputSchema as Record<string, unknown>;
     expect(schema.type).toBe('object');
     expect(schema.additionalProperties).toBe(false);
+    // Length caps mirror the api's POST /mcp/reports body (audit jsonb bound).
     expect(schema.properties).toEqual({
-      gapId: { type: 'string', minLength: 1 },
+      gapId: { type: 'string', minLength: 1, maxLength: 64 },
       status: { type: 'string', enum: ['in_progress', 'done', 'blocked'] },
-      note: { type: 'string', minLength: 1 },
+      note: { type: 'string', minLength: 1, maxLength: 2000 },
     });
     expect(schema.required).toEqual(['status']);
   });
@@ -84,11 +86,15 @@ describe('tool schema contract', () => {
     expect(description.toLowerCase()).toContain('does not');
   });
 
-  it('contract: report_progress description states the nothing-persisted v1 boundary', async () => {
+  it('contract: report_progress description states the persisted, audited semantics', async () => {
     const tools = await listToolSchemas();
     const description = tools.report_progress?.description ?? '';
-    expect(description.toLowerCase()).toContain('v1 boundary');
-    expect(description.toUpperCase()).toContain('NOTHING IS PERSISTED');
+    expect(description.toUpperCase()).toContain('PERSISTED SERVER-SIDE');
+    expect(description).toContain('audit log');
+    // The degraded fallback stays documented: an old server answers degraded:true.
+    expect(description).toContain('"degraded": true');
+    // The T-0024 "nothing is persisted" wording must not come back silently.
+    expect(description.toUpperCase()).not.toContain('NOTHING IS PERSISTED');
   });
 
   it('contract: get_project_context description states read-only semantics', async () => {
