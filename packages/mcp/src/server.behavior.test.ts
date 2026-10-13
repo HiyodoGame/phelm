@@ -303,6 +303,27 @@ describe('report_progress behavior', () => {
     expect(result.isError).toBe(true);
     expect(firstText(result)).toContain('>=1 characters at gapId');
   });
+
+  it('rejects an oversized gapId or note before any delivery (caps mirror the api body)', async () => {
+    const api = fakeApi();
+    const { client } = await startServer(api);
+    const tooLongGap = await client.callTool({
+      name: 'report_progress',
+      arguments: { status: 'done', gapId: 'g'.repeat(65) },
+    });
+    expect(tooLongGap.isError).toBe(true);
+    expect(firstText(tooLongGap)).toContain('<=64 characters at gapId');
+
+    const tooLongNote = await client.callTool({
+      name: 'report_progress',
+      arguments: { status: 'done', note: 'n'.repeat(2001) },
+    });
+    expect(tooLongNote.isError).toBe(true);
+    expect(firstText(tooLongNote)).toContain('<=2000 characters at note');
+
+    // Nothing was delivered, nothing was logged: the report never left the tool.
+    expect(api.reportProgress).not.toHaveBeenCalled();
+  });
 });
 
 describe('tool error mapping', () => {

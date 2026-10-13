@@ -251,14 +251,28 @@ describe('HelmApiClient.reportProgress (T-0025)', () => {
     expect(JSON.parse(init?.body as string)).toEqual(input);
   });
 
-  it('degrades on 404 (server predates /mcp/reports) instead of erroring', async () => {
-    const fetchFn = vi.fn<typeof fetch>().mockResolvedValue(statusResponse(404));
-    const client = makeClient(fetchFn);
-    await expect(client.reportProgress(input)).resolves.toEqual({
-      received: true,
-      audited: false,
-      degraded: true,
-    });
+  it('degrades on 404 (server predates /mcp/reports) instead of erroring, logging the attempted URL', async () => {
+    const errorSpy = vi.spyOn(console, 'error').mockImplementation(() => {});
+    try {
+      const fetchFn = vi.fn<typeof fetch>().mockResolvedValue(statusResponse(404));
+      const client = makeClient(fetchFn, { apiBaseUrl: 'http://api.test///' });
+      await expect(client.reportProgress(input)).resolves.toEqual({
+        received: true,
+        audited: false,
+        degraded: true,
+      });
+      // The degradation must not be silent: one structured stderr line with
+      // the URL actually used (normalized base), so a wrong HELM_API_URL
+      // shows up in debugging instead of hiding behind the receipt.
+      expect(errorSpy).toHaveBeenCalledTimes(1);
+      expect(JSON.parse(errorSpy.mock.calls[0]![0] as string)).toEqual({
+        event: 'report_progress_degraded',
+        url: 'http://api.test/mcp/reports',
+        reason: 'server answered 404 (predates POST /mcp/reports); answering the v1 receipt',
+      });
+    } finally {
+      errorSpy.mockRestore();
+    }
   });
 
   it('maps 401/503/500/network and a malformed ack to typed errors', async () => {

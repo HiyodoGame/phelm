@@ -107,6 +107,12 @@ export interface HelmApiConfig {
   fetch?: typeof fetch;
   /** Per-request timeout in ms (default 30 000); timeouts map to network errors. */
   timeoutMs?: number;
+  /**
+   * One-line structured logger for client-side events that must not be
+   * silent (notably the degraded report fallback). Defaults to
+   * console.error — stderr, so stdio mode's protocol stream stays pure.
+   */
+  log?: (line: string) => void;
 }
 
 /** Default per-request timeout: a hung data plane must not hang the agent. */
@@ -183,12 +189,14 @@ export class HelmApiClient implements HelmApi {
   private readonly base: string;
   private readonly token: string;
   private readonly timeoutMs: number;
+  private readonly log: (line: string) => void;
 
   constructor(config: HelmApiConfig) {
     this.fetchFn = config.fetch ?? fetch;
     this.base = config.apiBaseUrl.replace(/\/+$/, '');
     this.token = config.token;
     this.timeoutMs = config.timeoutMs ?? DEFAULT_TIMEOUT_MS;
+    this.log = config.log ?? ((line: string) => console.error(line));
   }
 
   fetchBoard(): Promise<Board> {
@@ -237,6 +245,15 @@ export class HelmApiClient implements HelmApi {
     }
     if (response.status === 404) {
       // Old server without the endpoint: the v1 receipt, marked degraded.
+      // Logged loudly (with the URL actually used) so a misconfigured base
+      // URL cannot hide behind silent degradation during debugging.
+      this.log(
+        JSON.stringify({
+          event: 'report_progress_degraded',
+          url: `${this.base}/mcp/reports`,
+          reason: 'server answered 404 (predates POST /mcp/reports); answering the v1 receipt',
+        }),
+      );
       return { received: true, audited: false, degraded: true };
     }
     if (response.status === 401) {

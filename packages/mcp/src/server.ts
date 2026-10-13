@@ -102,10 +102,13 @@ export function createPhelmMcpServer(deps: PhelmMcpDeps): McpServer {
         'audit log (which connection token reported what, when) before the acknowledgment is ' +
         'returned. When the connected server predates this endpoint the tool answers with ' +
         '"degraded": true — a receipt only, nothing is stored.',
+      // Caps mirror the api's POST /mcp/reports body one-to-one: the payload
+      // lands in the server-side audit jsonb, so an unbounded note would be
+      // a storage-exhaustion amplifier. Keep both sides in lockstep.
       inputSchema: z.strictObject({
-        gapId: z.string().min(1).optional(),
+        gapId: z.string().min(1).max(64).optional(),
         status: z.enum(['in_progress', 'done', 'blocked']),
-        note: z.string().min(1).optional(),
+        note: z.string().min(1).max(2000).optional(),
       }),
     },
     async (args) => {

@@ -64,15 +64,16 @@ describe('tool schema contract', () => {
     expect(schema.required === undefined || (schema.required as string[]).length === 0).toBe(true);
   });
 
-  it('contract: report_progress input pins gapId?/status/note? with the status enum', async () => {
+  it('contract: report_progress input pins gapId?/status/note? with the status enum and length caps', async () => {
     const tools = await listToolSchemas();
     const schema = tools.report_progress?.inputSchema as Record<string, unknown>;
     expect(schema.type).toBe('object');
     expect(schema.additionalProperties).toBe(false);
+    // Length caps mirror the api's POST /mcp/reports body (audit jsonb bound).
     expect(schema.properties).toEqual({
-      gapId: { type: 'string', minLength: 1 },
+      gapId: { type: 'string', minLength: 1, maxLength: 64 },
       status: { type: 'string', enum: ['in_progress', 'done', 'blocked'] },
-      note: { type: 'string', minLength: 1 },
+      note: { type: 'string', minLength: 1, maxLength: 2000 },
     });
     expect(schema.required).toEqual(['status']);
   });

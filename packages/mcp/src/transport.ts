@@ -233,7 +233,12 @@ export function depsFromEnv(
   log?: (line: string) => void,
 ): PhelmMcpDeps {
   return {
-    client: new HelmApiClient(clientConfigFromEnv(env)),
+    client: new HelmApiClient({
+      ...clientConfigFromEnv(env),
+      // Share the tool logger so client-side events (e.g. the degraded
+      // report fallback) land on the same stderr stream.
+      ...(log === undefined ? {} : { log }),
+    }),
     ...(log === undefined ? {} : { log }),
   };
 }
