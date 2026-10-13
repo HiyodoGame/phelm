@@ -221,7 +221,8 @@ MCP log there first.
 
 - **Least privilege.** An MCP token reaches only the data plane:
   `GET /board`, `GET /relations`, `GET /relations/:id/gaps`,
-  `GET /briefings/latest`, `GET /briefings/:date` and `POST /mcp/reports`.
+  `GET /briefings/latest`, `GET /briefings/:date`,
+  `GET /projects/:id/detail` and `POST /mcp/reports`.
   Management endpoints
   (token issue/revoke, ingest, configuration, ...) treat an `mcp_` bearer as
   just another wrong credential: the same uniform `401` as everywhere else.
