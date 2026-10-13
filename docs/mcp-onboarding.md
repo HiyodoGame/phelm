@@ -43,7 +43,8 @@ The steps:
 ## 2. Issue an MCP token (operator, once)
 
 With your operator token, create one MCP connection token per agent
-(descriptive label, e.g. `<client> on <machine>`; 1–80 characters):
+(descriptive label, e.g. `<client> on <machine>`; 1–80 characters after
+trimming):
 
 ```bash
 curl -s -X POST http://localhost:3000/mcp/tokens \
@@ -220,7 +221,8 @@ MCP log there first.
 
 - **Least privilege.** An MCP token reaches only the data plane:
   `GET /board`, `GET /relations`, `GET /relations/:id/gaps`,
-  `GET /briefings/latest` and `POST /mcp/reports`. Management endpoints
+  `GET /briefings/latest`, `GET /briefings/:date` and `POST /mcp/reports`.
+  Management endpoints
   (token issue/revoke, ingest, configuration, ...) treat an `mcp_` bearer as
   just another wrong credential: the same uniform `401` as everywhere else.
 - **Audited.** Every authenticated MCP request and every accepted report is
