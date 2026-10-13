@@ -17,6 +17,7 @@ const noopApi: HelmApi = {
   fetchRelations: vi.fn().mockResolvedValue([]),
   fetchOpenGapGroups: vi.fn().mockResolvedValue({ groups: [], total: 0 }),
   fetchLatestBriefing: vi.fn().mockResolvedValue(null),
+  reportProgress: vi.fn().mockResolvedValue({ received: true, audited: true }),
 };
 
 const INITIALIZED = {
@@ -191,10 +192,7 @@ describe('HTTP transport (wire format)', () => {
       const result = (payload as { result: { content: Array<{ type: string; text: string }> } })
         .result;
       const ack = JSON.parse(result.content[0]!.text) as unknown;
-      expect(ack).toEqual({
-        received: true,
-        audit: 'server-side audit log lands in T-0025; nothing is persisted yet',
-      });
+      expect(ack).toEqual({ received: true, audited: true });
     } finally {
       await listener.close();
     }

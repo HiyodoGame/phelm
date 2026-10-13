@@ -79,6 +79,7 @@ function makeFakeApi(options: FakeOptions = {}): HelmApi {
     fetchRelations: vi.fn().mockResolvedValue(options.relations ?? [relation]),
     fetchOpenGapGroups: vi.fn().mockResolvedValue(groupsOf(options.gaps ?? [])),
     fetchLatestBriefing: vi.fn().mockResolvedValue(null),
+    reportProgress: vi.fn().mockResolvedValue({ received: true, audited: true }),
   };
 }
 

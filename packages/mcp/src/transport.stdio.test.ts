@@ -131,6 +131,13 @@ beforeAll(async () => {
       return;
     }
     const url = request.url ?? '';
+    if (request.method === 'POST' && url === '/mcp/reports') {
+      // T-0025 report intake: the smoke asserts the persisted ack end to end.
+      response
+        .writeHead(200, { 'Content-Type': 'application/json' })
+        .end(JSON.stringify({ received: true, audited: true }));
+      return;
+    }
     const body =
       url === '/board'
         ? board
@@ -248,10 +255,7 @@ describe('stdio transport smoke (built bin)', () => {
     });
     const ackText = (ack.result as { content: Array<{ type: string; text: string }> }).content[0]!
       .text;
-    expect(JSON.parse(ackText)).toEqual({
-      received: true,
-      audit: 'server-side audit log lands in T-0025; nothing is persisted yet',
-    });
+    expect(JSON.parse(ackText)).toEqual({ received: true, audited: true });
   }, 30_000);
 
   it('keeps stdout protocol-pure: every line is JSON-RPC, no stray logs', () => {

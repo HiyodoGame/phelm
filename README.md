@@ -34,6 +34,28 @@ The cloud orchestration service, web dashboard and the HarmonyOS app live in a p
 
 ### Use the MCP server (once available)
 
+First, issue a dedicated **MCP token** on the Helm Agent server (once, with
+your operator token — the same `API_AUTH_TOKEN` the CLI uses). The plaintext
+token is shown exactly once in this response:
+
+```bash
+curl -s -X POST http://localhost:3000/mcp/tokens \
+  -H "Authorization: Bearer <your API_AUTH_TOKEN>" \
+  -H "Content-Type: application/json" \
+  -d '{"label": "zcode on workstation"}'
+# → {"id":"mcptok_…","token":"mcp_…","label":"zcode on workstation","createdAt":"…"}
+```
+
+Put that `mcp_…` value in the MCP config. It only reaches the MCP data plane
+(board, relations and gaps, briefings, progress reports) — never the
+management endpoints — and everything it does is recorded in the server-side
+audit log. To shut an agent out later, revoke without touching anything else:
+
+```bash
+curl -s -X DELETE http://localhost:3000/mcp/tokens/<token id> \
+  -H "Authorization: Bearer <your API_AUTH_TOKEN>"
+```
+
 ```jsonc
 // e.g. in your agent's MCP config (Cursor, ZCode, ...)
 {
@@ -43,7 +65,7 @@ The cloud orchestration service, web dashboard and the HarmonyOS app live in a p
       "args": ["-y", "@phelm/mcp"],
       "env": {
         "HELM_API_URL": "http://localhost:3000",
-        "HELM_API_TOKEN": "<your Helm Agent API token>"
+        "HELM_API_TOKEN": "<the mcp_… token you issued above>"
       }
     }
   }
@@ -55,15 +77,16 @@ on `127.0.0.1` only, endpoint `/mcp`).
 
 Your agent can then ask "what should I work on?" (`get_task` — advisory: it
 suggests, it does not claim), read project context (`get_project_context`),
-and report progress (`report_progress` — v1 acknowledges and logs, nothing
-is persisted yet).
+and report progress (`report_progress` — validated and persisted server-side
+to the audit log; against an older server it answers `degraded: true` and
+stores nothing).
 
 ## Design principles
 
 1. **Neutral above agents** — not competing with any coding agent; the more agents you use, the more valuable the management layer.
 2. **Evidence over vibes** — every risk and suggestion cites PR/commit/CI links; conclusions without evidence are discarded.
 3. **Human-in-the-loop** — plan changes ship as proposals you approve, not silent mutations.
-4. **Least privilege by default** — the MCP server is read + report only; no repo write access. Requests are token-gated, and the server-side audit log lands in an upcoming release. (We care about MCP security — see [SECURITY.md](SECURITY.md).)
+4. **Least privilege by default** — the MCP server is read + report only; no repo write access. Connections use revocable per-agent MCP tokens, and every authenticated request and progress report is recorded in the server-side audit log. (We care about MCP security — see [SECURITY.md](SECURITY.md).)
 
 ## Getting started (CLI)
 

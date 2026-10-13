@@ -17,6 +17,7 @@ const noopApi: HelmApi = {
   fetchRelations: vi.fn().mockResolvedValue([]),
   fetchOpenGapGroups: vi.fn().mockResolvedValue({ groups: [], total: 0 }),
   fetchLatestBriefing: vi.fn().mockResolvedValue(null),
+  reportProgress: vi.fn().mockResolvedValue({ received: true, audited: true }),
 };
 
 async function listToolSchemas(deps = { client: noopApi }) {
@@ -84,11 +85,15 @@ describe('tool schema contract', () => {
     expect(description.toLowerCase()).toContain('does not');
   });
 
-  it('contract: report_progress description states the nothing-persisted v1 boundary', async () => {
+  it('contract: report_progress description states the persisted, audited semantics', async () => {
     const tools = await listToolSchemas();
     const description = tools.report_progress?.description ?? '';
-    expect(description.toLowerCase()).toContain('v1 boundary');
-    expect(description.toUpperCase()).toContain('NOTHING IS PERSISTED');
+    expect(description.toUpperCase()).toContain('PERSISTED SERVER-SIDE');
+    expect(description).toContain('audit log');
+    // The degraded fallback stays documented: an old server answers degraded:true.
+    expect(description).toContain('"degraded": true');
+    // The T-0024 "nothing is persisted" wording must not come back silently.
+    expect(description.toUpperCase()).not.toContain('NOTHING IS PERSISTED');
   });
 
   it('contract: get_project_context description states read-only semantics', async () => {

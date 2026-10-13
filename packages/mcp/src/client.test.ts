@@ -234,3 +234,62 @@ describe('HelmApiClient', () => {
     expect(fetchFn).not.toHaveBeenCalled();
   });
 });
+
+describe('HelmApiClient.reportProgress (T-0025)', () => {
+  const input = { gapId: 'gap_1', status: 'done' as const, note: 'fixed in #42' };
+  const ack = { received: true, audited: true };
+
+  it('POSTs the report body to /mcp/reports with the bearer header and parses the ack', async () => {
+    const fetchFn = vi.fn<typeof fetch>().mockResolvedValue(okResponse(ack));
+    const client = makeClient(fetchFn);
+    await expect(client.reportProgress(input)).resolves.toEqual(ack);
+    const [url, init] = fetchFn.mock.calls[0] ?? [];
+    expect(url).toBe('http://api.test/mcp/reports');
+    expect(init?.method).toBe('POST');
+    expect((init?.headers as Record<string, string>).Authorization).toBe('Bearer secret-token');
+    expect((init?.headers as Record<string, string>)['Content-Type']).toBe('application/json');
+    expect(JSON.parse(init?.body as string)).toEqual(input);
+  });
+
+  it('degrades on 404 (server predates /mcp/reports) instead of erroring', async () => {
+    const fetchFn = vi.fn<typeof fetch>().mockResolvedValue(statusResponse(404));
+    const client = makeClient(fetchFn);
+    await expect(client.reportProgress(input)).resolves.toEqual({
+      received: true,
+      audited: false,
+      degraded: true,
+    });
+  });
+
+  it('maps 401/503/500/network and a malformed ack to typed errors', async () => {
+    const unauthorized = makeClient(vi.fn<typeof fetch>().mockResolvedValue(statusResponse(401)));
+    await expect(unauthorized.reportProgress(input)).rejects.toBeInstanceOf(HelmUnauthorizedError);
+
+    const unavailable = makeClient(vi.fn<typeof fetch>().mockResolvedValue(statusResponse(503)));
+    await expect(unavailable.reportProgress(input)).rejects.toBeInstanceOf(
+      HelmServiceUnavailableError,
+    );
+
+    const serverError = makeClient(vi.fn<typeof fetch>().mockResolvedValue(statusResponse(500)));
+    await expect(serverError.reportProgress(input)).rejects.toBeInstanceOf(
+      HelmUnexpectedResponseError,
+    );
+
+    const unreachable = makeClient(
+      vi.fn<typeof fetch>().mockRejectedValue(new Error('ECONNREFUSED')),
+    );
+    await expect(unreachable.reportProgress(input)).rejects.toBeInstanceOf(HelmNetworkError);
+
+    const malformed = makeClient(vi.fn<typeof fetch>().mockResolvedValue(okResponse({ nope: 1 })));
+    await expect(malformed.reportProgress(input)).rejects.toBeInstanceOf(
+      HelmUnexpectedResponseError,
+    );
+  });
+
+  it('answers a missing token before any request', async () => {
+    const fetchFn = vi.fn<typeof fetch>();
+    const client = makeClient(fetchFn, { token: '' });
+    await expect(client.reportProgress(input)).rejects.toBeInstanceOf(TokenNotConfiguredError);
+    expect(fetchFn).not.toHaveBeenCalled();
+  });
+});

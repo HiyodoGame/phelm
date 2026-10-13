@@ -145,6 +145,7 @@ function fakeApi(overrides: Partial<HelmApi> = {}): HelmApi {
     fetchRelations: vi.fn().mockResolvedValue([relation]),
     fetchOpenGapGroups: vi.fn().mockResolvedValue(gapGroups),
     fetchLatestBriefing: vi.fn().mockResolvedValue(null),
+    reportProgress: vi.fn().mockResolvedValue({ received: true, audited: true }),
     ...overrides,
   };
 }
@@ -209,16 +210,19 @@ describe('get_task behavior', () => {
 });
 
 describe('report_progress behavior', () => {
-  it('acknowledges a valid report and logs one structured stderr line', async () => {
-    const { client, logLines } = await startServer(fakeApi());
+  it('delivers the report to the client and returns the persisted ack', async () => {
+    const api = fakeApi();
+    const { client, logLines } = await startServer(api);
     const result = await client.callTool({
       name: 'report_progress',
       arguments: { gapId: 'gap_top', status: 'done', note: 'fixed in #42' },
     });
     expect(result.isError).toBeFalsy();
-    expect(parseText(result)).toEqual({
-      received: true,
-      audit: 'server-side audit log lands in T-0025; nothing is persisted yet',
+    expect(parseText(result)).toEqual({ received: true, audited: true });
+    expect(api.reportProgress).toHaveBeenCalledWith({
+      gapId: 'gap_top',
+      status: 'done',
+      note: 'fixed in #42',
     });
     expect(logLines).toHaveLength(1);
     expect(JSON.parse(logLines[0] ?? '')).toEqual({
@@ -227,6 +231,38 @@ describe('report_progress behavior', () => {
       status: 'done',
       noteLength: 12,
     });
+  });
+
+  it('marks the v1 receipt degraded when the server predates the report endpoint', async () => {
+    const { client } = await startServer(
+      fakeApi({
+        reportProgress: vi
+          .fn()
+          .mockResolvedValue({ received: true, audited: false, degraded: true }),
+      }),
+    );
+    const result = await client.callTool({
+      name: 'report_progress',
+      arguments: { status: 'in_progress' },
+    });
+    expect(result.isError).toBeFalsy();
+    expect(parseText(result)).toEqual({ received: true, audited: false, degraded: true });
+  });
+
+  it('maps a client failure to the clean tool error', async () => {
+    const { client } = await startServer(
+      fakeApi({
+        reportProgress: vi.fn().mockRejectedValue(new HelmNetworkError('http://localhost:3000')),
+      }),
+    );
+    const result = await client.callTool({
+      name: 'report_progress',
+      arguments: { status: 'blocked', note: 'stuck on flaky CI' },
+    });
+    expect(result.isError).toBe(true);
+    expect(firstText(result)).toContain(
+      'cannot reach the Helm Agent server at http://localhost:3000',
+    );
   });
 
   it('logs a null gapId when the report omits it', async () => {

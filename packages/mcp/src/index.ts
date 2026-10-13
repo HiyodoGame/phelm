@@ -21,6 +21,10 @@ export {
   type LinkageGap,
   linkageGapSchema,
   type BoardProject,
+  type ReportProgressAck,
+  type ReportProgressDegraded,
+  type ReportProgressInput,
+  type ReportProgressResult,
   TokenNotConfiguredError,
 } from './client.js';
 export {
