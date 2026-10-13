@@ -221,6 +221,7 @@ MCP log there first.
 
 - **Least privilege.** An MCP token reaches only the data plane:
   `GET /board`, `GET /relations`, `GET /relations/:id/gaps`,
+  `GET /gaps/open`, `GET /timeline`,
   `GET /briefings/latest`, `GET /briefings/:date`,
   `GET /projects/:id/detail` and `POST /mcp/reports`.
   Management endpoints
