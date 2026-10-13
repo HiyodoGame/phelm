@@ -32,48 +32,45 @@ The cloud orchestration service, web dashboard and the HarmonyOS app live in a p
 
 > Status: **pre-alpha, under active development** (P0). Packages are not published to npm yet. Star/watch to catch the first release.
 
-### Use the MCP server (once available)
+### Use the MCP server
 
-First, issue a dedicated **MCP token** on the Helm Agent server (once, with
-your operator token — the same `API_AUTH_TOKEN` the CLI uses). The plaintext
-token is shown exactly once in this response:
+Any MCP-capable coding agent (Cursor, ZCode, Claude Code, ...) can pull tasks
+from — and report progress back to — a running Helm Agent server through the
+MCP server in `packages/mcp`. Full setup guide:
+**[docs/mcp-onboarding.md](docs/mcp-onboarding.md)** (prerequisites, token
+issue/revoke, Cursor + generic stdio + HTTP configuration, verification,
+troubleshooting, security notes).
 
-```bash
-curl -s -X POST http://localhost:3000/mcp/tokens \
-  -H "Authorization: Bearer <your API_AUTH_TOKEN>" \
-  -H "Content-Type: application/json" \
-  -d '{"label": "zcode on workstation"}'
-# → {"id":"mcptok_…","token":"mcp_…","label":"zcode on workstation","createdAt":"…"}
-```
+The short version:
 
-Put that `mcp_…` value in the MCP config. It only reaches the MCP data plane
-(board, relations and gaps, briefings, progress reports) — never the
-management endpoints — and everything it does is recorded in the server-side
-audit log. To shut an agent out later, revoke without touching anything else:
+1. Issue a dedicated **MCP token** on the Helm Agent server (once, with your
+   operator token — the same `API_AUTH_TOKEN` the CLI uses). The plaintext
+   token is shown exactly once in this response:
+
+   ```bash
+   curl -s -X POST http://localhost:3000/mcp/tokens \
+     -H "Authorization: Bearer <your API_AUTH_TOKEN>" \
+     -H "Content-Type: application/json" \
+     -d '{"label": "cursor on alice-laptop"}'
+   # → {"id":"mcptok_…","token":"mcp_…","label":"cursor on alice-laptop","createdAt":"…"}
+   ```
+
+2. Point your agent's MCP config at the built server
+   (`node <path-to-phelm>/packages/mcp/dist/transport.js`) with
+   `HELM_API_URL` and `HELM_API_TOKEN` (`mcp_…` above) in its env — see the
+   guide for ready-to-paste config samples. Or serve Streamable HTTP instead
+   of stdio: `phelm-mcp --http 6280` (listens on `127.0.0.1` only, endpoint
+   `/mcp`).
+
+The token only reaches the MCP data plane (board, relations and gaps,
+briefings, progress reports) — never the management endpoints — and
+everything it does is recorded in the server-side audit log. To shut an agent
+out later, revoke without touching anything else:
 
 ```bash
 curl -s -X DELETE http://localhost:3000/mcp/tokens/<token id> \
   -H "Authorization: Bearer <your API_AUTH_TOKEN>"
 ```
-
-```jsonc
-// e.g. in your agent's MCP config (Cursor, ZCode, ...)
-{
-  "mcpServers": {
-    "phelm": {
-      "command": "npx",
-      "args": ["-y", "@phelm/mcp"],
-      "env": {
-        "HELM_API_URL": "http://localhost:3000",
-        "HELM_API_TOKEN": "<the mcp_… token you issued above>"
-      }
-    }
-  }
-}
-```
-
-Or serve Streamable HTTP instead of stdio: `phelm-mcp --http 6280` (listens
-on `127.0.0.1` only, endpoint `/mcp`).
 
 Your agent can then ask "what should I work on?" (`get_task` — advisory: it
 suggests, it does not claim), read project context (`get_project_context`),
