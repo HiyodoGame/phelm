@@ -223,6 +223,7 @@ MCP log there first.
   `GET /board`, `GET /relations`, `GET /relations/:id/gaps`,
   `GET /gaps/open`, `GET /timeline`,
   `GET /proposals`, `GET /proposals/:id`,
+  `GET /tasks`, `GET /tasks/:id`,
   `GET /briefings/latest`, `GET /briefings/:date`,
   `GET /projects/:id/detail` and `POST /mcp/reports`.
   Management endpoints
