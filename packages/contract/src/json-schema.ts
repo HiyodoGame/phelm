@@ -1,6 +1,11 @@
 import { z } from 'zod';
 import { MilestoneSchema, ProjectCharterSchema } from './charter.js';
-import { AgentConnectionSchema, TaskSchema, TaskSpecSchema } from './dispatch.js';
+import {
+  AgentConnectionSchema,
+  RunnerReportSchema,
+  TaskSchema,
+  TaskSpecSchema,
+} from './dispatch.js';
 import { EventSchema, SnapshotSchema } from './events.js';
 import { UserSchema, DecisionLogSchema } from './identity.js';
 import { ProposalSchema, RiskSchema, SuggestionSchema } from './judgment.js';
@@ -25,6 +30,7 @@ export const CONTRACT_SCHEMA_ENTITIES = [
   'Proposal',
   'TaskSpec',
   'Task',
+  'RunnerReport',
   'AgentConnection',
   'DecisionLog',
   'ProjectRelation',
@@ -54,6 +60,7 @@ export function exportJsonSchemas(): Record<ContractSchemaEntity, JsonSchema> {
     Proposal: toJSONSchema(ProposalSchema),
     TaskSpec: toJSONSchema(TaskSpecSchema),
     Task: toJSONSchema(TaskSchema),
+    RunnerReport: toJSONSchema(RunnerReportSchema),
     AgentConnection: toJSONSchema(AgentConnectionSchema),
     DecisionLog: toJSONSchema(DecisionLogSchema),
     ProjectRelation: toJSONSchema(ProjectRelationSchema),
