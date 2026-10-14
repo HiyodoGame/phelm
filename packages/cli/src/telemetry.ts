@@ -66,13 +66,16 @@ export interface SendCliPingOptions extends CliPingPayload {
   timeoutMs?: number;
 }
 
-const DEFAULT_PING_TIMEOUT_MS = 2_000;
+// One second (T-0040 review P2-5, shortened from 2s): the ping is
+// fire-and-forget telemetry — on a half-open connection the timeout IS the
+// exit delay, and a whole extra second of silent waiting buys nothing.
+const DEFAULT_PING_TIMEOUT_MS = 1_000;
 
 /**
  * Fire the ping. NEVER throws: every failure mode (opt-out is the caller's
  * concern, network, HTTP status, timeout) resolves silently. Awaited (not
  * floating) so the process does not exit before the request is written —
- * with the short timeout the worst case adds two quiet seconds, never an
+ * with the short timeout the worst case adds one quiet second, never an
  * error.
  */
 export async function sendCliPing(options: SendCliPingOptions): Promise<void> {
