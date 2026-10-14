@@ -108,6 +108,12 @@ phelm today                                  # today's briefing (UTC date; exits
 No client id ships with this repository: bring your own GitHub App (or use
 the one from your Helm Agent deployment).
 
+## Privacy
+
+- `phelm board`, `phelm brief` and `phelm today` send one anonymous ping after a successful run: a random install id, the command name and the CLI version — never project names, repository names, tokens, file paths or command output.
+- Telemetry is optional: opt out with `PHELM_NO_TELEMETRY=1` (environment) or the `--no-telemetry` flag on any of the three commands; a ping failure is always silent and never affects the command's exit code or output.
+- The install id is a random UUID generated on first use and stored at `~/.phelm/install-id` (mode 0600); it identifies the installation, not you, and deleting the file resets it.
+
 ## Roadmap
 
 See [docs/ROADMAP.md](docs/ROADMAP.md).

@@ -23,11 +23,15 @@ import {
   type UserRepo,
 } from './github-api.js';
 import { parseIntervalSeconds, runRunner, type RunnerOptions } from './runner.js';
+import { recordCommandPing, type SendCliPingOptions } from './telemetry.js';
 
 /**
  * The phelm CLI (T-0009): `login` (GitHub device flow, encrypted local
  * token), `logout`, and `repos` (list with the user token, import to the
  * Helm Agent server). Credentials never appear in logs or error messages.
+ * T-0040: `board` / `brief` / `today` additionally fire one anonymous,
+ * opt-out telemetry ping after a successful run (see telemetry.ts and the
+ * README's Privacy section).
  */
 
 const DEFAULT_API_BASE = 'http://localhost:3000';
@@ -50,6 +54,8 @@ export interface CliDeps {
   }) => Promise<Briefing>;
   /** The whole runner loop (T-0038); tests inject to observe the wiring. */
   runner?: (options: RunnerOptions) => Promise<void>;
+  /** The anonymous telemetry ping (T-0040); tests inject to observe it. */
+  sendPing?: (options: SendCliPingOptions) => Promise<void>;
 }
 
 /** Build the phelm commander program. Exported so tests can drive it. */
@@ -77,6 +83,22 @@ export function createProgram(deps: CliDeps = {}): Command {
         }
       }));
 
+  /**
+   * The T-0040 ping seam: called after a SUCCESSFUL board/brief/today run.
+   * Opt-out via --no-telemetry (flag === false) or PHELM_NO_TELEMETRY; every
+   * failure inside is silent and cannot touch the exit code.
+   */
+  const ping = (command: string, apiBaseUrl: string, telemetry?: boolean): Promise<void> =>
+    recordCommandPing({
+      env,
+      config,
+      apiBaseUrl,
+      command,
+      version: PHELM_CONTRACT_VERSION,
+      flag: telemetry,
+      ...(deps.sendPing === undefined ? {} : { send: deps.sendPing }),
+    });
+
   const program = new Command();
 
   program
@@ -94,15 +116,19 @@ export function createProgram(deps: CliDeps = {}): Command {
       env.PHELM_API_TOKEN ?? '',
     )
     .option('--json', 'Print the raw board JSON')
-    .action(async (options: { api: string; token: string; json?: boolean }) => {
-      const board = await fetchBoard({ apiBaseUrl: options.api, token: options.token });
-      if (options.json === true) {
-        console.log(JSON.stringify(board, null, 2));
-        return;
-      }
-      const colors = process.stdout.isTTY === true && env.NO_COLOR === undefined;
-      console.log(renderBoard(board, { colors }));
-    });
+    .option('--no-telemetry', 'Skip the anonymous usage ping for this run')
+    .action(
+      async (options: { api: string; token: string; json?: boolean; telemetry?: boolean }) => {
+        const board = await fetchBoard({ apiBaseUrl: options.api, token: options.token });
+        if (options.json === true) {
+          console.log(JSON.stringify(board, null, 2));
+        } else {
+          const colors = process.stdout.isTTY === true && env.NO_COLOR === undefined;
+          console.log(renderBoard(board, { colors }));
+        }
+        await ping('board', options.api, options.telemetry);
+      },
+    );
 
   program
     .command('brief')
@@ -113,12 +139,14 @@ export function createProgram(deps: CliDeps = {}): Command {
       'Helm Agent API token (or set PHELM_API_TOKEN)',
       env.PHELM_API_TOKEN ?? '',
     )
-    .action(async (options: { api: string; token: string }) => {
+    .option('--no-telemetry', 'Skip the anonymous usage ping for this run')
+    .action(async (options: { api: string; token: string; telemetry?: boolean }) => {
       const briefing = await fetchLatestBriefing({ apiBaseUrl: options.api, token: options.token });
       printBriefing(briefing, {
         out: (text) => process.stdout.write(text),
         err: (text) => console.error(text),
       });
+      await ping('brief', options.api, options.telemetry);
     });
 
   program
@@ -130,7 +158,8 @@ export function createProgram(deps: CliDeps = {}): Command {
       'Helm Agent API token (or set PHELM_API_TOKEN)',
       env.PHELM_API_TOKEN ?? '',
     )
-    .action(async (options: { api: string; token: string }) => {
+    .option('--no-telemetry', 'Skip the anonymous usage ping for this run')
+    .action(async (options: { api: string; token: string; telemetry?: boolean }) => {
       try {
         const briefing = await fetchBriefingForDate({
           apiBaseUrl: options.api,
@@ -141,10 +170,12 @@ export function createProgram(deps: CliDeps = {}): Command {
           out: (text) => process.stdout.write(text),
           err: (text) => console.error(text),
         });
+        await ping('today', options.api, options.telemetry);
       } catch (error) {
         if (error instanceof BriefingNotFoundError) {
           // Expected state, not a crash: today's briefing may not exist yet.
           // No silent fallback to the latest one — `today` stays deterministic.
+          // A failed run fires no telemetry (only successes count).
           console.error(
             'no briefing generated for today yet (it is generated daily; try `phelm brief` for the latest)',
           );
