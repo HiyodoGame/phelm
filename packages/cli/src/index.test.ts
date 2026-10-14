@@ -7,6 +7,7 @@ import { openConfig, clearRawCredentials } from './config.js';
 import { BriefingNotFoundError } from './brief.js';
 import { loadStoredToken, saveStoredToken } from './crypto.js';
 import { createProgram, type CliDeps } from './index.js';
+import { loadOrCreateInstallId, type SendCliPingOptions } from './telemetry.js';
 import type { RunnerOptions } from './runner.js';
 import type { Briefing } from './brief.js';
 import type { ImportResult, UserRepo } from './github-api.js';
@@ -325,6 +326,134 @@ describe('phelm today', () => {
       'no briefing generated for today yet (it is generated daily; try `phelm brief` for the latest)',
     ]);
     expect(capture.out).toEqual([]);
+  });
+});
+
+describe('anonymous telemetry ping (T-0040)', () => {
+  function pingDeps(overrides: Partial<CliDeps> = {}): {
+    deps: CliDeps;
+    pings: SendCliPingOptions[];
+  } {
+    const pings: SendCliPingOptions[] = [];
+    const deps = makeDeps({
+      ...overrides,
+      sendPing: async (options) => {
+        pings.push(options);
+      },
+    });
+    return { deps, pings };
+  }
+
+  it('fires one ping after a successful brief run with installId/command/version ONLY', async () => {
+    const { deps, pings } = pingDeps();
+    const capture = captureStreams();
+    try {
+      await run(createProgram(deps), ['brief', '--api', 'http://api.example.test', '--token', 't']);
+    } finally {
+      capture.restore();
+    }
+    expect(pings).toHaveLength(1);
+    const ping = pings[0]!;
+    expect(ping.command).toBe('brief');
+    expect(ping.version).toBe(PHELM_CONTRACT_VERSION);
+    expect(ping.apiBaseUrl).toBe('http://api.example.test');
+    expect(ping.installId).toMatch(
+      /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i,
+    );
+    // The id persists under the PHELM_HOME sandbox and is reused next run.
+    expect(loadOrCreateInstallId(openConfig(env))).toBe(ping.installId);
+  });
+
+  it('--no-telemetry silences the ping (and creates no install-id file)', async () => {
+    const { deps, pings } = pingDeps();
+    const capture = captureStreams();
+    try {
+      await run(createProgram(deps), [
+        'brief',
+        '--api',
+        'http://api.example.test',
+        '--no-telemetry',
+      ]);
+    } finally {
+      capture.restore();
+    }
+    expect(pings).toHaveLength(0);
+  });
+
+  it('PHELM_NO_TELEMETRY=1 silences the ping', async () => {
+    const pings: SendCliPingOptions[] = [];
+    const capture = captureStreams();
+    try {
+      const program = createProgram(
+        makeDeps({
+          env: { PHELM_HOME: testHome, PHELM_NO_TELEMETRY: '1' },
+          sendPing: async (options) => {
+            pings.push(options);
+          },
+        }),
+      );
+      await run(program, ['brief']);
+    } finally {
+      capture.restore();
+    }
+    expect(pings).toHaveLength(0);
+  });
+
+  it('a successful today fires command=today; a 404 (failed run) fires nothing', async () => {
+    const { deps, pings } = pingDeps();
+    const capture = captureStreams();
+    try {
+      await run(createProgram(deps), ['today']);
+      expect(pings.map((ping) => ping.command)).toEqual(['today']);
+    } finally {
+      capture.restore();
+    }
+
+    const failed = pingDeps({
+      fetchBriefingForDate: async () => {
+        throw new BriefingNotFoundError('2026-10-13');
+      },
+    });
+    const failedCapture = captureStreams();
+    let exitCode: typeof process.exitCode;
+    try {
+      await run(createProgram(failed.deps), ['today']);
+      exitCode = process.exitCode;
+    } finally {
+      failedCapture.restore();
+      process.exitCode = 0;
+    }
+    expect(failed.pings).toHaveLength(0);
+    expect(exitCode).toBe(1);
+  });
+
+  it('a rejecting ping never affects the command outcome (silent by contract)', async () => {
+    const capture = captureStreams();
+    const before = process.exitCode;
+    try {
+      const program = createProgram(
+        makeDeps({
+          sendPing: async () => {
+            throw new Error('transport exploded');
+          },
+        }),
+      );
+      await run(program, ['brief']);
+      expect(process.exitCode).toBe(before);
+      // The briefing itself still printed before the silent failure.
+      expect(capture.out.join('')).toBe(BRIEFING_MD);
+    } finally {
+      capture.restore();
+    }
+  });
+
+  it('exposes --no-telemetry on board, brief and today', () => {
+    const program = createProgram(makeDeps());
+    for (const name of ['board', 'brief', 'today']) {
+      const command = program.commands.find((entry) => entry.name() === name);
+      const flags = command?.options.map((option) => option.long) ?? [];
+      expect(flags, name).toContain('--no-telemetry');
+    }
   });
 });
 
