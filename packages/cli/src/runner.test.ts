@@ -319,6 +319,7 @@ describe('runOnce', () => {
     expect(result.outcome).toBe('claimed');
     expect(result.exitCode).toBe(1);
     expect(result.prUrl).toBeUndefined();
+    expect(result.fatal).toBeUndefined(); // a non-zero EXIT is a task outcome, not fatal
     const body = JSON.parse(String(deps.fetchCalls.at(-1)!.init.body)) as Record<string, unknown>;
     expect(body).toEqual({ taskId: 'T-0042', exitCode: 1, logTail: 'failed loudly' });
     expect(body.prUrl).toBeUndefined();
@@ -372,6 +373,154 @@ describe('runOnce', () => {
     expect(deps.spawned).toHaveLength(0);
     expect(deps.errLines.at(-1)).toContain('claim failed after 3 retries');
     expect(deps.errLines.at(-1)).toContain('cannot reach the Helm Agent server');
+  });
+});
+
+describe('fatal classification (review P1)', () => {
+  it('RunnerError defaults to non-fatal; the flag is opt-in', () => {
+    expect(new RunnerError('boom').fatal).toBe(false);
+    expect(new RunnerError('boom', { fatal: true }).fatal).toBe(true);
+  });
+
+  it('marks spawn-level failure fatal: the claimed task still reports its -1 run, then the cycle carries fatal', async () => {
+    const deps = makeDeps({
+      fetch: (async (url: unknown, init: unknown) => {
+        const call = { url: String(url), init: init as RequestInit };
+        deps.fetchCalls.push(call);
+        if (call.url.endsWith('/tasks/claim')) {
+          return jsonResponse(taskBody());
+        }
+        return jsonResponse(taskBody({ status: 'dispatched' }));
+      }) as typeof fetch,
+      spawnAgent: async () => {
+        throw new Error('spawn agent-run ENOENT');
+      },
+    });
+    const result = await runOnce(OPTIONS, deps);
+
+    // The fabricated -1 run IS reported so the row carries the reason...
+    expect(result).toEqual({
+      outcome: 'claimed',
+      taskId: 'T-0042',
+      exitCode: -1,
+      fatal: 'spawn',
+    });
+    const body = JSON.parse(String(deps.fetchCalls.at(-1)!.init.body)) as Record<string, unknown>;
+    expect(body).toMatchObject({ taskId: 'T-0042', exitCode: -1 });
+    expect(String(body.logTail)).toContain('runner error: spawn agent-run ENOENT');
+    expect(deps.errLines.at(-1)).toContain('fatal: the agent command template failed to spawn');
+  });
+
+  it('never retries a spawn failure', async () => {
+    let spawnAttempts = 0;
+    const deps = makeDeps({
+      fetch: (async (url: unknown, init: unknown) => {
+        const call = { url: String(url), init: init as RequestInit };
+        deps.fetchCalls.push(call);
+        if (call.url.endsWith('/tasks/claim')) {
+          return jsonResponse(taskBody());
+        }
+        return jsonResponse(taskBody());
+      }) as typeof fetch,
+      spawnAgent: async () => {
+        spawnAttempts += 1;
+        throw new Error('spawn ENOENT');
+      },
+    });
+    await runOnce(OPTIONS, deps);
+    expect(spawnAttempts).toBe(1); // spawn is not inside the retry policy
+  });
+
+  it('marks a claim 401 fatal and skips the retry policy entirely', async () => {
+    const deps = makeDeps({
+      fetch: (async (url: unknown, init: unknown) => {
+        deps.fetchCalls.push({ url: String(url), init: init as RequestInit });
+        return new Response(null, { status: 401 });
+      }) as typeof fetch,
+    });
+    const result = await runOnce(OPTIONS, deps);
+
+    expect(result).toEqual({ outcome: 'failed', fatal: 'claim' });
+    expect(deps.fetchCalls).toHaveLength(1); // 401 cannot heal: no retries
+    expect(deps.sleeps).toEqual([]);
+    expect(deps.errLines.at(-1)).toContain('claim failed (fatal)');
+    expect(deps.errLines.at(-1)).toContain('rejected the API token');
+  });
+
+  it('marks an unparsable claim payload fatal (no retries)', async () => {
+    const deps = makeDeps({
+      fetch: (async (url: unknown, init: unknown) => {
+        deps.fetchCalls.push({ url: String(url), init: init as RequestInit });
+        return jsonResponse({ nope: 'not a contract Task' });
+      }) as typeof fetch,
+    });
+    const result = await runOnce(OPTIONS, deps);
+
+    expect(result).toEqual({ outcome: 'failed', fatal: 'claim' });
+    expect(deps.fetchCalls).toHaveLength(1);
+    expect(deps.errLines.at(-1)).toContain('unexpected claim payload');
+  });
+
+  it('circuit-breaks the loop on a spawn fatal (one cycle, exit-code failure)', async () => {
+    const deps = makeDeps({
+      fetch: (async (url: unknown, init: unknown) => {
+        const call = { url: String(url), init: init as RequestInit };
+        deps.fetchCalls.push(call);
+        if (call.url.endsWith('/tasks/claim')) {
+          return jsonResponse(taskBody());
+        }
+        return jsonResponse(taskBody());
+      }) as typeof fetch,
+      spawnAgent: async () => {
+        throw new Error('spawn ENOENT');
+      },
+    });
+    const result = await runRunner(
+      { ...OPTIONS, once: false, intervalSeconds: 1 },
+      { ...deps, stopped: () => false }, // nothing asked it to stop
+    );
+
+    expect(result.ok).toBe(false);
+    const claimCalls = deps.fetchCalls.filter((call) => call.url.endsWith('/tasks/claim'));
+    expect(claimCalls).toHaveLength(1); // broke after the FIRST fatal cycle
+    expect(deps.sleeps).toEqual([]); // no idle sleep before the break
+    expect(deps.errLines.at(-1)).toContain('已熔断');
+    expect(deps.errLines.at(-1)).toContain('--agent 模板');
+  });
+
+  it('circuit-breaks the loop on a claim fatal (one cycle, exit-code failure)', async () => {
+    const deps = makeDeps({
+      fetch: (async (url: unknown, init: unknown) => {
+        deps.fetchCalls.push({ url: String(url), init: init as RequestInit });
+        return new Response(null, { status: 401 });
+      }) as typeof fetch,
+    });
+    const result = await runRunner(
+      { ...OPTIONS, once: false, intervalSeconds: 1 },
+      { ...deps, stopped: () => false },
+    );
+
+    expect(result.ok).toBe(false);
+    const claimCalls = deps.fetchCalls.filter((call) => call.url.endsWith('/tasks/claim'));
+    expect(claimCalls).toHaveLength(1);
+    expect(deps.errLines.at(-1)).toContain('已熔断');
+  });
+
+  it('keeps looping on NON-fatal claim failures (network errors stay decision 9)', async () => {
+    const deps = makeDeps({
+      fetch: (async (url: unknown, init: unknown) => {
+        deps.fetchCalls.push({ url: String(url), init: init as RequestInit });
+        throw new TypeError('connection refused');
+      }) as typeof fetch,
+    });
+    const failedCycles = () => Math.floor(deps.fetchCalls.length / (1 + REPORT_RETRIES));
+    const result = await runRunner(
+      { ...OPTIONS, once: false, intervalSeconds: 1 },
+      { ...deps, stopped: () => failedCycles() >= 2 },
+    );
+
+    expect(result.ok).toBe(false);
+    expect(failedCycles()).toBe(2); // two full retried cycles, no circuit break
   });
 });
 

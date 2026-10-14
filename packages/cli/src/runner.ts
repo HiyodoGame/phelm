@@ -27,12 +27,31 @@ import {
  * task in its server-side state. SIGINT/SIGTERM finish the current cycle
  * (report included) before exiting. The token only ever travels inside the
  * Authorization header and never appears in logs or error messages.
+ *
+ * FATAL classification (review P1): some errors cannot heal within this
+ * process's lifetime — the agent template failing to spawn (a permanent
+ * local misconfiguration), a claim 401 (the token will not fix itself) and
+ * an unparsable claim payload (a server-side contract break, P2-6 family).
+ * Retrying or looping on them is worse than useless: every further cycle
+ * would fail the same way, and a spawn fatal in particular would drain the
+ * whole ready board into dispatched-with-no-result rows (no un-dispatch
+ * path until T-0039). So a fatal cycle marks its result and the loop
+ * CIRCUIT-BREAKS: exit non-zero with an operator-facing explanation, the
+ * fix happens outside the process, the operator restarts. An agent process
+ * that merely exits non-zero is NOT fatal — that is an ordinary task
+ * outcome (reported back, loop continues).
  */
 
+/** A runner error that is either transient (default) or `fatal` (permanent
+ * local misconfiguration — see the module comment; `withRetries` never
+ * retries a fatal and the loop circuit-breaks on one). */
 export class RunnerError extends Error {
-  constructor(message: string) {
+  readonly fatal: boolean;
+
+  constructor(message: string, options: { fatal?: boolean } = {}) {
     super(message);
     this.name = 'RunnerError';
+    this.fatal = options.fatal === true;
   }
 }
 
@@ -71,9 +90,16 @@ export interface RunnerDeps {
   err?: (text: string) => void;
 }
 
-/** One claim cycle's outcome (`failed` = the cycle never got to report). */
+/** One claim cycle's outcome (`failed` = the cycle never got to report).
+ * `fatal` (review P1) marks a permanent local misconfiguration the loop
+ * must circuit-break on instead of idling into the next cycle:
+ * - `'spawn'`: the agent template failed to spawn (the claimed task still
+ *   gets its fabricated -1 run reported, then the loop stops);
+ * - `'claim'`: the claim failed without any chance of self-healing (401 /
+ *   unparsable payload) — nothing was claimed. */
 export interface RunOnceResult {
   outcome: 'claimed' | 'idle' | 'failed';
+  fatal?: 'spawn' | 'claim';
   taskId?: string;
   exitCode?: number;
   prUrl?: string;
@@ -86,6 +112,11 @@ export interface RunRunnerResult {
 
 function errorMessage(error: unknown): string {
   return error instanceof Error ? error.message : String(error);
+}
+
+/** True when the error is a RunnerError marked fatal (review P1). */
+function isFatalError(error: unknown): boolean {
+  return error instanceof RunnerError && error.fatal;
 }
 
 /** ---------- prompt rendering (pure; design decision 7) ---------- */
@@ -146,8 +177,16 @@ const PR_URL_PATTERN = /https:\/\/github\.com\/[A-Za-z0-9_.-]+\/[A-Za-z0-9_.-]+\
  * HEURISTIC (design decision 8): take the LAST pull-request URL in the
  * agent's merged output. Agents tend to print comparison links before the
  * final one, and the wrap-up instruction asks for the PR URL as the last
- * output line. Known limit: if the agent never prints the URL, the report
- * carries none and the task stays dispatched — a human must read the log.
+ * output line. The heuristic is known to be limited in BOTH directions:
+ * - false negative: the agent never prints the URL — the report carries
+ *   none and the task stays dispatched; a human must read the log.
+ * - false positive (review P2-5): the goal text, the agent's own echoed
+ *   logs, or a "related PR" mention can carry a DIFFERENT PR-shaped URL;
+ *   if any of those lands AFTER the real URL, the echo is taken as the
+ *   prUrl and mis-attributes the task. Nothing downstream parses the URL
+ *   beyond storing it, but it is displayed as the task's PR — an operator
+ *   reconciling via the webhook path is not affected (the webhook records
+ *   the PR it actually observed).
  */
 export function extractPrUrl(output: string): string | undefined {
   const matches = [...output.matchAll(PR_URL_PATTERN)];
@@ -221,7 +260,10 @@ async function apiFetch(
     throw new RunnerError(`cannot reach the Helm Agent server at ${base} (is it running?)`);
   }
   if (response.status === 401) {
-    throw new RunnerError('the server rejected the API token (check --token / PHELM_API_TOKEN)');
+    // The token cannot heal within this process's lifetime (review P1-2).
+    throw new RunnerError('the server rejected the API token (check --token / PHELM_API_TOKEN)', {
+      fatal: true,
+    });
   }
   return response;
 }
@@ -241,7 +283,10 @@ async function claimTask(deps: RunnerDeps, options: RunnerOptions): Promise<Task
   }
   const parsed = TaskSchema.safeParse(await response.json().catch(() => undefined));
   if (!parsed.success) {
-    throw new RunnerError('the server returned an unexpected claim payload');
+    // A payload that breaks the contract is a server-side problem the
+    // process cannot out-wait (review P1-2, P2-6 family): retrying would
+    // parse the same bytes.
+    throw new RunnerError('the server returned an unexpected claim payload', { fatal: true });
   }
   return parsed.data;
 }
@@ -264,7 +309,10 @@ async function sendReport(
 }
 
 /** Run `run` with the pinned retry policy: 1 initial attempt + 3 retries,
- * exponential backoff from 500ms. The LAST error is rethrown. */
+ * exponential backoff from 500ms. The LAST error is rethrown — except a
+ * FATAL RunnerError (review P1-2), which is rethrown immediately: retrying
+ * a permanent misconfiguration (401, unparsable payload) only burns the
+ * backoff. */
 async function withRetries<T>(deps: RunnerDeps, run: () => Promise<T>): Promise<T> {
   const sleep = deps.sleep ?? ((ms: number) => new Promise<void>((r) => setTimeout(r, ms)));
   let lastError: unknown;
@@ -276,6 +324,9 @@ async function withRetries<T>(deps: RunnerDeps, run: () => Promise<T>): Promise<
       return await run();
     } catch (error) {
       lastError = error;
+      if (isFatalError(error)) {
+        throw error;
+      }
     }
   }
   throw lastError;
@@ -294,6 +345,13 @@ export async function runOnce(
   try {
     task = await withRetries(deps, () => claimTask(deps, options));
   } catch (error) {
+    if (isFatalError(error)) {
+      // Claim fatal (review P1-2): 401 / unparsable payload will not heal
+      // within this process — say why (the message carries the fix hint);
+      // the loop circuit-breaks on the fatal marker.
+      err(`claim failed (fatal): ${errorMessage(error)}`);
+      return { outcome: 'failed', fatal: 'claim' };
+    }
     err(`claim failed after ${REPORT_RETRIES} retries: ${errorMessage(error)}`);
     return { outcome: 'failed' };
   }
@@ -305,14 +363,21 @@ export async function runOnce(
   out(`claimed ${task.id} (${task.spec.repo})`);
   const prompt = renderPrompt(task.spec);
   let agent: SpawnedAgent;
+  let spawnFatal = false;
   try {
     const spawnAgent = deps.spawnAgent ?? spawnAgentProcess;
     agent = await spawnAgent(options.agentTemplate, prompt);
   } catch (error) {
-    // Spawn-level failure (the shell could not even start): record it as a
-    // -1 agent run so the claimed task still gets its result reported
-    // instead of stranding in `dispatched` with nothing on the row.
+    // Spawn-level failure (the shell could not even start — ENOENT etc.) is
+    // a PERMANENT local misconfiguration, not a task outcome (review P1-1).
+    // The claimed task still gets its fabricated -1 run reported so the row
+    // carries the reason instead of stranding silently, and the cycle is
+    // marked fatal so the loop CIRCUIT-BREAKS: without the break every
+    // further cycle would spawn-fail again and drain the ready board into
+    // dispatched rows (no un-dispatch path until T-0039).
     agent = { exitCode: -1, output: `runner error: ${errorMessage(error)}` };
+    spawnFatal = true;
+    err(`fatal: the agent command template failed to spawn: ${errorMessage(error)}`);
   }
 
   const prUrl = extractPrUrl(agent.output);
@@ -328,16 +393,27 @@ export async function runOnce(
   try {
     await withRetries(deps, () => sendReport(deps, options, report));
   } catch (error) {
-    // Design decision 9: retries exhausted — warn loudly and leave the task
-    // in its server-side state (a webhook PR-opened can still reconcile it).
+    // Design decision 9: retries exhausted (or a fatal that was never
+    // retried, e.g. a 401) — warn loudly and leave the task in its
+    // server-side state (a webhook PR-opened can still reconcile it). The
+    // loop continues either way: if the token is broken the NEXT claim
+    // fails fatally and circuit-breaks there.
     err(
-      `warning: reporting task ${task.id} failed after ${REPORT_RETRIES} retries: ${errorMessage(error)}; the task stays in its server-side state`,
+      isFatalError(error)
+        ? `warning: reporting task ${task.id} failed (fatal): ${errorMessage(error)}; the task stays in its server-side state`
+        : `warning: reporting task ${task.id} failed after ${REPORT_RETRIES} retries: ${errorMessage(error)}; the task stays in its server-side state`,
     );
   }
   out(
     `task ${task.id}: agent exited with ${agent.exitCode}${prUrl === undefined ? '' : `, PR ${prUrl}`}`,
   );
-  return { outcome: 'claimed', taskId: task.id, exitCode: agent.exitCode, prUrl };
+  return {
+    outcome: 'claimed',
+    taskId: task.id,
+    exitCode: agent.exitCode,
+    prUrl,
+    ...(spawnFatal ? { fatal: 'spawn' as const } : {}),
+  };
 }
 
 /**
@@ -363,6 +439,7 @@ export async function runRunner(
           dispose: () => {},
         };
   const out = deps.out ?? ((text: string) => process.stdout.write(`${text}\n`));
+  const err = deps.err ?? ((text: string) => console.error(text));
   try {
     out(
       options.once
@@ -372,8 +449,23 @@ export async function runRunner(
     let ok = true;
     for (;;) {
       const result = await runOnce(options, { ...deps, sleep: runtime.sleep });
-      if (result.outcome === 'failed') {
+      if (result.outcome === 'failed' || result.fatal !== undefined) {
         ok = false;
+      }
+      if (result.fatal !== undefined) {
+        // Circuit break (review P1): a fatal is a permanent local
+        // misconfiguration — the agent template cannot spawn, or the claim
+        // cannot succeed (401 / unparsable payload). Every further cycle
+        // would fail the same way (a spawn fatal would drain the ready
+        // board into dispatched rows; there is no un-dispatch path before
+        // T-0039), so stop instead of idling into the next cycle. The fix
+        // happens outside this process; the operator restarts.
+        err(
+          result.fatal === 'spawn'
+            ? 'runner 配置错误已熔断，修复 --agent 模板后重启 (fatal; the runner stops)'
+            : `runner 配置错误已熔断，修复配置后重启 (fatal; the runner stops): see the fatal error above`,
+        );
+        break;
       }
       if (options.once || runtime.stopped()) {
         break;
