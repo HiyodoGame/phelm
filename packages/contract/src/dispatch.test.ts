@@ -1,5 +1,11 @@
 import { describe, expect, it } from 'vitest';
-import { AgentConnectionSchema, TaskSchema, TaskSpecSchema, defaultBranchFor } from './dispatch.js';
+import {
+  AgentConnectionSchema,
+  RunnerReportSchema,
+  TaskSchema,
+  TaskSpecSchema,
+  defaultBranchFor,
+} from './dispatch.js';
 
 const spec = {
   taskId: 'T-0042',
@@ -104,5 +110,40 @@ describe('AgentConnectionSchema', () => {
     expect(AgentConnectionSchema.safeParse({ ...connection, credentialsRef: '' }).success).toBe(
       false,
     );
+  });
+});
+
+const report = {
+  taskId: 'T-0042',
+  exitCode: 0,
+  prUrl: 'https://github.com/HiyodoGame/phelm/pull/12',
+  logTail: 'Opened pull request #12',
+};
+
+describe('RunnerReportSchema', () => {
+  it('parses a full report', () => {
+    expect(RunnerReportSchema.parse(report)).toEqual(report);
+  });
+
+  it('parses without a prUrl (a failed or silent run)', () => {
+    const { prUrl: _prUrl, ...withoutUrl } = report;
+    expect(RunnerReportSchema.parse(withoutUrl)).toEqual(withoutUrl);
+  });
+
+  it('rejects a malformed prUrl, a non-integer exit code and an empty logTail', () => {
+    expect(RunnerReportSchema.safeParse({ ...report, prUrl: 'not a url' }).success).toBe(false);
+    expect(RunnerReportSchema.safeParse({ ...report, exitCode: 0.5 }).success).toBe(false);
+    expect(RunnerReportSchema.safeParse({ ...report, logTail: '' }).success).toBe(false);
+  });
+
+  it('rejects a logTail over the 8192-char cap and unknown keys', () => {
+    expect(RunnerReportSchema.safeParse({ ...report, logTail: 'x'.repeat(8193) }).success).toBe(
+      false,
+    );
+    expect(RunnerReportSchema.safeParse({ ...report, extra: true }).success).toBe(false);
+  });
+
+  it('accepts a negative integer exit code (the signal-killed sentinel)', () => {
+    expect(RunnerReportSchema.parse({ ...report, exitCode: -1 }).exitCode).toBe(-1);
   });
 });

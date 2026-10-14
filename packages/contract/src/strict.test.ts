@@ -1,7 +1,12 @@
 import { describe, expect, it } from 'vitest';
 import { z } from 'zod';
 import { ProjectCharterSchema, MilestoneSchema } from './charter.js';
-import { AgentConnectionSchema, TaskSchema, TaskSpecSchema } from './dispatch.js';
+import {
+  AgentConnectionSchema,
+  RunnerReportSchema,
+  TaskSchema,
+  TaskSpecSchema,
+} from './dispatch.js';
 import { EventSchema, SnapshotSchema } from './events.js';
 import { UserSchema, DecisionLogSchema } from './identity.js';
 import { ProposalSchema, RiskSchema, SuggestionSchema } from './judgment.js';
@@ -10,7 +15,7 @@ import { LinkageGapSchema, ProjectRelationSchema } from './relation.js';
 /**
  * Every entity object is strict: unknown keys are rejected (not silently
  * stripped), matching the exported JSON Schemas' additionalProperties:false.
- * This suite locks that policy in one place for all 13 entities + TaskSpec.
+ * This suite locks that policy in one place for all 14 entities + TaskSpec.
  */
 const taskSpec = {
   taskId: 'T-0001',
@@ -138,6 +143,16 @@ const cases = [
       targetAgent: 'zcode',
       channel: 'mcp',
       status: 'created',
+    },
+  ],
+  [
+    'RunnerReport',
+    RunnerReportSchema,
+    {
+      taskId: 'T-0001',
+      exitCode: 0,
+      prUrl: 'https://github.com/octo/repo/pull/1',
+      logTail: 'agent output tail',
     },
   ],
   [

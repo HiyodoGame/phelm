@@ -90,6 +90,31 @@ export const TaskSchema = z
   })
   .strict();
 
+/**
+ * What a CLI runner reports back to the server after one agent run
+ * (`POST /tasks/:id/runner-report`). The server stores it verbatim as the
+ * task's `result` payload — the latest report wins; history policy is a
+ * later concern. `logTail` carries the tail of the agent's merged output
+ * (capped at 8192 chars) so an operator can see why a run failed without
+ * access to the runner's machine.
+ */
+export const RunnerReportSchema = z
+  .object({
+    /** The claimed task this report belongs to (must match the URL's id). */
+    taskId: TaskIdSchema,
+    /** Spawn exit code of the agent process (-1 when it died on a signal). */
+    exitCode: z.number().int(),
+    /**
+     * Pull request URL, when one could be extracted from the agent's output.
+     * Optional on purpose: an agent that fails (or never prints the URL)
+     * reports without one and the task stays dispatched.
+     */
+    prUrl: z.url().optional(),
+    /** Last 8192 characters of the agent's merged stdout+stderr. */
+    logTail: z.string().min(1).max(8192),
+  })
+  .strict();
+
 /** Lifecycle of an agent connection. */
 export const AgentConnectionStatusSchema = z.enum(['connected', 'disabled', 'error']);
 
@@ -123,6 +148,9 @@ export type TaskStatus = z.infer<typeof TaskStatusSchema>;
 
 /** Inferred type of {@link TaskSchema}. */
 export type Task = z.infer<typeof TaskSchema>;
+
+/** Inferred type of {@link RunnerReportSchema}. */
+export type RunnerReport = z.infer<typeof RunnerReportSchema>;
 
 /** Inferred type of {@link AgentConnectionStatusSchema}. */
 export type AgentConnectionStatus = z.infer<typeof AgentConnectionStatusSchema>;

@@ -22,6 +22,7 @@ import {
   type ImportResult,
   type UserRepo,
 } from './github-api.js';
+import { parseIntervalSeconds, runRunner, type RunnerOptions } from './runner.js';
 
 /**
  * The phelm CLI (T-0009): `login` (GitHub device flow, encrypted local
@@ -47,6 +48,8 @@ export interface CliDeps {
     token: string;
     date: string;
   }) => Promise<Briefing>;
+  /** The whole runner loop (T-0038); tests inject to observe the wiring. */
+  runner?: (options: RunnerOptions) => Promise<void>;
 }
 
 /** Build the phelm commander program. Exported so tests can drive it. */
@@ -65,6 +68,14 @@ export function createProgram(deps: CliDeps = {}): Command {
     deps.fetchBriefingForDate ??
     ((options: { apiBaseUrl: string; token: string; date: string }) =>
       fetchBriefingForDateFromServer(options));
+  const runnerLoop =
+    deps.runner ??
+    ((options: RunnerOptions) =>
+      runRunner(options).then((result) => {
+        if (!result.ok) {
+          process.exitCode = 1;
+        }
+      }));
 
   const program = new Command();
 
@@ -143,6 +154,58 @@ export function createProgram(deps: CliDeps = {}): Command {
         throw error;
       }
     });
+
+  program
+    .command('runner')
+    .description(
+      'Claim tasks from your Helm Agent server, run your local agent CLI headless on each, and report back (polling loop; Ctrl+C stops after the current cycle)',
+    )
+    .option('--api <url>', 'Helm Agent API base URL', env.PHELM_API_BASE ?? DEFAULT_API_BASE)
+    .option(
+      '--token <token>',
+      'Helm Agent API token (or set PHELM_API_TOKEN)',
+      env.PHELM_API_TOKEN ?? '',
+    )
+    .option(
+      '--agent <template>',
+      'Shell command template that runs your agent headless; the task prompt is piped to its stdin (or set PHELM_RUNNER_AGENT)',
+      env.PHELM_RUNNER_AGENT ?? '',
+    )
+    .option('--interval <seconds>', 'Seconds between claim attempts', '30')
+    .option('--once', 'Run a single claim cycle, then exit', false)
+    .action(
+      async (options: {
+        api: string;
+        token: string;
+        agent: string;
+        interval: string;
+        once?: boolean;
+      }) => {
+        const intervalSeconds = parseIntervalSeconds(options.interval);
+        if (intervalSeconds === undefined) {
+          console.error(
+            `phelm runner: --interval must be a positive integer of seconds (got "${options.interval}")`,
+          );
+          process.exitCode = 1;
+          return;
+        }
+        if (options.agent === '') {
+          console.error(
+            'phelm runner: missing --agent <template> (or set PHELM_RUNNER_AGENT).\n' +
+              'Usage: phelm runner --agent "<agent command template>" --api <url> --token <token> [--interval <seconds>] [--once]',
+          );
+          process.exitCode = 1;
+          return;
+        }
+        await runnerLoop({
+          apiBaseUrl: options.api,
+          token: options.token,
+          agentTemplate: options.agent,
+          intervalSeconds,
+          once: options.once === true,
+        });
+      },
+    );
 
   program
     .command('login')

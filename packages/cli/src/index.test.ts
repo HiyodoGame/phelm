@@ -7,6 +7,7 @@ import { openConfig, clearRawCredentials } from './config.js';
 import { BriefingNotFoundError } from './brief.js';
 import { loadStoredToken, saveStoredToken } from './crypto.js';
 import { createProgram, type CliDeps } from './index.js';
+import type { RunnerOptions } from './runner.js';
 import type { Briefing } from './brief.js';
 import type { ImportResult, UserRepo } from './github-api.js';
 
@@ -324,5 +325,110 @@ describe('phelm today', () => {
       'no briefing generated for today yet (it is generated daily; try `phelm brief` for the latest)',
     ]);
     expect(capture.out).toEqual([]);
+  });
+});
+
+describe('runner command', () => {
+  const RUNNER_ENV = { PHELM_HOME: testHome } satisfies NodeJS.ProcessEnv;
+
+  function runnerDeps(overrides: Partial<CliDeps> = {}): CliDeps & { seen: RunnerOptions[] } {
+    const seen: RunnerOptions[] = [];
+    return {
+      ...makeDeps(overrides),
+      runner: async (options) => {
+        seen.push(options);
+      },
+      seen,
+    };
+  }
+
+  async function runQuietly(
+    deps: CliDeps,
+    args: string[],
+  ): Promise<{ exitCode: typeof process.exitCode; err: string[] }> {
+    const capture = captureStreams();
+    let exitCode: typeof process.exitCode;
+    try {
+      await run(createProgram(deps), args);
+      exitCode = process.exitCode;
+    } finally {
+      capture.restore();
+      process.exitCode = 0;
+    }
+    return { exitCode, err: capture.err };
+  }
+
+  it('registers the runner command', () => {
+    const program = createProgram(makeDeps());
+    expect(program.commands.map((command) => command.name())).toContain('runner');
+  });
+
+  it('wires the flags into the runner loop', async () => {
+    const deps = runnerDeps({ env: RUNNER_ENV });
+    await runQuietly(deps, [
+      'runner',
+      '--agent',
+      'agent-run --headless',
+      '--api',
+      'http://api.test',
+      '--token',
+      'tok-1',
+      '--interval',
+      '5',
+      '--once',
+    ]);
+    expect(deps.seen).toEqual([
+      {
+        apiBaseUrl: 'http://api.test',
+        token: 'tok-1',
+        agentTemplate: 'agent-run --headless',
+        intervalSeconds: 5,
+        once: true,
+      },
+    ]);
+  });
+
+  it('falls back to the environment and the documented defaults', async () => {
+    const deps = runnerDeps({
+      env: {
+        ...RUNNER_ENV,
+        PHELM_API_BASE: 'http://env-api.test',
+        PHELM_API_TOKEN: 'env-token',
+        PHELM_RUNNER_AGENT: 'env-agent',
+      },
+    });
+    await runQuietly(deps, ['runner', '--once']);
+    expect(deps.seen).toEqual([
+      {
+        apiBaseUrl: 'http://env-api.test',
+        token: 'env-token',
+        agentTemplate: 'env-agent',
+        intervalSeconds: 30,
+        once: true,
+      },
+    ]);
+  });
+
+  it('prints usage and exits 1 when the agent template is missing', async () => {
+    const deps = runnerDeps({ env: RUNNER_ENV });
+    const { exitCode, err } = await runQuietly(deps, ['runner']);
+    expect(deps.seen).toEqual([]);
+    expect(exitCode).toBe(1);
+    expect(err.join('\n')).toContain('missing --agent <template>');
+    expect(err.join('\n')).toContain('Usage: phelm runner');
+  });
+
+  it('exits 1 on a non-integer interval', async () => {
+    const deps = runnerDeps({ env: RUNNER_ENV });
+    const { exitCode, err } = await runQuietly(deps, [
+      'runner',
+      '--agent',
+      'agent-run',
+      '--interval',
+      'soon',
+    ]);
+    expect(deps.seen).toEqual([]);
+    expect(exitCode).toBe(1);
+    expect(err.join('\n')).toContain('--interval must be a positive integer');
   });
 });

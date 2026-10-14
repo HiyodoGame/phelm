@@ -2,7 +2,7 @@
  * Version of the phelm contract surface.
  * Kept in sync with the package version in package.json.
  */
-export const PHELM_CONTRACT_VERSION = '0.0.3';
+export const PHELM_CONTRACT_VERSION = '0.0.4';
 
 export * from './primitives.js';
 export * from './identity.js';

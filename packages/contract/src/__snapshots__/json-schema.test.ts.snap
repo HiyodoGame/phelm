@@ -653,6 +653,36 @@ exports[`exportJsonSchemas > locks the exported shapes 1`] = `
     ],
     "type": "object",
   },
+  "RunnerReport": {
+    "$schema": "https://json-schema.org/draft/2020-12/schema",
+    "additionalProperties": false,
+    "properties": {
+      "exitCode": {
+        "maximum": 9007199254740991,
+        "minimum": -9007199254740991,
+        "type": "integer",
+      },
+      "logTail": {
+        "maxLength": 8192,
+        "minLength": 1,
+        "type": "string",
+      },
+      "prUrl": {
+        "format": "uri",
+        "type": "string",
+      },
+      "taskId": {
+        "pattern": "^T-\\d{4}$",
+        "type": "string",
+      },
+    },
+    "required": [
+      "taskId",
+      "exitCode",
+      "logTail",
+    ],
+    "type": "object",
+  },
   "Snapshot": {
     "$schema": "https://json-schema.org/draft/2020-12/schema",
     "additionalProperties": false,
