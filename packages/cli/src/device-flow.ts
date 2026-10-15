@@ -64,10 +64,14 @@ async function postForm(
   return { status: response.status, body };
 }
 
-function requireString(body: Record<string, unknown>, key: string): string {
+function requireString(body: Record<string, unknown>, key: string, status?: number): string {
   const value = body[key];
   if (typeof value !== 'string' || value === '') {
-    throw new DeviceFlowError(`device flow response is missing '${key}'`);
+    // A 4xx JSON body (e.g. the App does not have the device flow enabled)
+    // arrives WITHOUT the expected keys — the status is the actionable part,
+    // not the missing key name (review P3 fix).
+    const httpHint = status !== undefined && status >= 400 ? ` (HTTP ${status})` : '';
+    throw new DeviceFlowError(`device flow response is missing '${key}'${httpHint}`);
   }
   return value;
 }
@@ -98,9 +102,9 @@ export async function loginWithDeviceFlow(
 
   const code = await postForm(fetchFn, `${baseUrl}/login/device/code`, { client_id: clientId });
   const deviceCode: DeviceCodeResponse = {
-    device_code: requireString(code.body, 'device_code'),
-    user_code: requireString(code.body, 'user_code'),
-    verification_uri: requireString(code.body, 'verification_uri'),
+    device_code: requireString(code.body, 'device_code', code.status),
+    user_code: requireString(code.body, 'user_code', code.status),
+    verification_uri: requireString(code.body, 'verification_uri', code.status),
     expires_in: typeof code.body.expires_in === 'number' ? code.body.expires_in : 900,
     interval: typeof code.body.interval === 'number' ? code.body.interval : 5,
   };

@@ -60,6 +60,34 @@ export type Board = z.infer<typeof boardSchema>;
 
 export type BoardProject = Board['projects'][number];
 
+/**
+ * Cleartext http to a non-loopback host would put the bearer token on the
+ * wire unencrypted (review P2 hardening): warn once per call on stderr and
+ * continue — the operator decides. Shared by board/brief/github-api.
+ */
+export function warnCleartextApiUrl(
+  base: string,
+  err: (line: string) => void = console.error,
+): void {
+  let url: URL;
+  try {
+    url = new URL(base);
+  } catch {
+    return; // invalid base fails later at fetch with a clearer error
+  }
+  const loopback =
+    url.hostname === 'localhost' ||
+    url.hostname === '127.0.0.1' ||
+    url.hostname === '::1' ||
+    url.hostname === '[::1]' ||
+    url.hostname.endsWith('.localhost');
+  if (url.protocol === 'http:' && !loopback) {
+    err(
+      `phelm: warning: --api uses cleartext http (${base}); the API token travels unencrypted — use https or a loopback address`,
+    );
+  }
+}
+
 export async function fetchBoard(options: {
   apiBaseUrl: string;
   token: string;
@@ -67,10 +95,13 @@ export async function fetchBoard(options: {
 }): Promise<Board> {
   const fetchFn = options.fetch ?? fetch;
   const base = options.apiBaseUrl.replace(/\/+$/, '');
+  warnCleartextApiUrl(base);
   let response: Response;
   try {
     response = await fetchFn(`${base}/board`, {
       headers: { Authorization: `Bearer ${options.token}` },
+      // Same-origin redirects must not replay the token (review P2 hardening).
+      redirect: 'error',
     });
   } catch {
     throw new BoardError(`cannot reach the Helm Agent server at ${base} (is it running?)`);

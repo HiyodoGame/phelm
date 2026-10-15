@@ -1,3 +1,4 @@
+import { warnCleartextApiUrl } from './board.js';
 import { z } from 'zod';
 
 /**
@@ -75,10 +76,13 @@ async function requestBriefing(
 ): Promise<Briefing> {
   const fetchFn = options.fetch ?? fetch;
   const base = options.apiBaseUrl.replace(/\/+$/, '');
+  warnCleartextApiUrl(base);
   let response: Response;
   try {
     response = await fetchFn(`${base}${path}`, {
       headers: { Authorization: `Bearer ${options.token}` },
+      // Same-origin redirects must not replay the token (review P2 hardening).
+      redirect: 'error',
     });
   } catch {
     throw new BriefingError(`cannot reach the Helm Agent server at ${base} (is it running?)`);
