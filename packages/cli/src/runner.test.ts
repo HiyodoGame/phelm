@@ -484,8 +484,8 @@ describe('fatal classification (review P1)', () => {
     const claimCalls = deps.fetchCalls.filter((call) => call.url.endsWith('/tasks/claim'));
     expect(claimCalls).toHaveLength(1); // broke after the FIRST fatal cycle
     expect(deps.sleeps).toEqual([]); // no idle sleep before the break
-    expect(deps.errLines.at(-1)).toContain('已熔断');
-    expect(deps.errLines.at(-1)).toContain('--agent 模板');
+    expect(deps.errLines.at(-1)).toContain('tripped the circuit breaker');
+    expect(deps.errLines.at(-1)).toContain('--agent template');
   });
 
   it('circuit-breaks the loop on a claim fatal (one cycle, exit-code failure)', async () => {
@@ -503,7 +503,7 @@ describe('fatal classification (review P1)', () => {
     expect(result.ok).toBe(false);
     const claimCalls = deps.fetchCalls.filter((call) => call.url.endsWith('/tasks/claim'));
     expect(claimCalls).toHaveLength(1);
-    expect(deps.errLines.at(-1)).toContain('已熔断');
+    expect(deps.errLines.at(-1)).toContain('tripped the circuit breaker');
   });
 
   it('keeps looping on NON-fatal claim failures (network errors stay decision 9)', async () => {

@@ -239,6 +239,15 @@ export function spawnAgentProcess(template: string, prompt: string): Promise<Spa
 
 /** ---------- server calls ---------- */
 
+/**
+ * Hard ceiling for one server round-trip. Without it a half-open connection
+ * (server died mid-request, NAT drop) hangs the fetch forever: the cycle
+ * never completes and SIGINT only wakes the idle sleep, not a pending fetch
+ * (review P1 fix — the MCP client already had a 30s timeout; the runner's
+ * long-lived loop needs it even more).
+ */
+const SERVER_TIMEOUT_MS = 30_000;
+
 async function apiFetch(
   deps: RunnerDeps,
   options: RunnerOptions & { path: string; method: 'POST'; body?: unknown },
@@ -255,6 +264,9 @@ async function apiFetch(
         ...(options.body === undefined ? {} : { 'content-type': 'application/json' }),
       },
       ...(options.body === undefined ? {} : { body: JSON.stringify(options.body) }),
+      // A timeout abort rejects like any network failure → the catch below
+      // maps it to a (retryable) RunnerError.
+      signal: AbortSignal.timeout(SERVER_TIMEOUT_MS),
     });
   } catch {
     throw new RunnerError(`cannot reach the Helm Agent server at ${base} (is it running?)`);
@@ -296,7 +308,20 @@ async function sendReport(
   options: RunnerOptions,
   report: RunnerReport,
 ): Promise<void> {
-  const body = RunnerReportSchema.parse(report);
+  // The report is built by this process, so a schema violation is a local
+  // deterministic bug — retrying re-parses the same bytes (review: the raw
+  // ZodError escaped withRetries' fatal handling and burned 3 retries plus
+  // a multi-line dump on the operator).
+  const parsed = RunnerReportSchema.safeParse(report);
+  if (!parsed.success) {
+    throw new RunnerError(
+      `runner report rejected by the contract schema: ${parsed.error.issues
+        .map((issue) => issue.path.join('.') || '(root)')
+        .join(', ')}`,
+      { fatal: true },
+    );
+  }
+  const body = parsed.data;
   const response = await apiFetch(deps, {
     ...options,
     path: `/tasks/${body.taskId}/runner-report`,
@@ -462,8 +487,8 @@ export async function runRunner(
         // happens outside this process; the operator restarts.
         err(
           result.fatal === 'spawn'
-            ? 'runner 配置错误已熔断，修复 --agent 模板后重启 (fatal; the runner stops)'
-            : `runner 配置错误已熔断，修复配置后重启 (fatal; the runner stops): see the fatal error above`,
+            ? 'runner configuration error tripped the circuit breaker; fix the --agent template and restart (fatal; the runner stops)'
+            : 'runner configuration error tripped the circuit breaker; fix the configuration and restart (fatal; the runner stops): see the fatal error above',
         );
         break;
       }
