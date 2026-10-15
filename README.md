@@ -23,7 +23,7 @@ It does not write code. It manages the agents that do.
 | Package | What it does |
 |---|---|
 | `packages/contract` | Zod schemas + TS types shared by every surface (Task Spec, events, snapshots, risks, proposals) |
-| `packages/cli` | `phelm` command line — `login`, `board`, `today`, `brief` |
+| `packages/cli` | `phelm` command line — `login` / `logout`, `repos` (+ `import`), `board`, `brief`, `today`, and the `runner` task loop |
 | `packages/mcp` | MCP server exposing `get_task` / `report_progress` / `get_project_context` so any MCP-capable agent can pull tasks from (and report back to) Helm |
 
 The cloud orchestration service, web dashboard and the HarmonyOS app live in a private repository.
@@ -107,6 +107,22 @@ phelm today                                  # today's briefing (UTC date; exits
 
 No client id ships with this repository: bring your own GitHub App (or use
 the one from your Helm Agent deployment).
+
+### Run the task runner
+
+`phelm runner` is a long-lived loop: it claims the oldest ready task from the
+Helm Agent server, pipes the task's prompt into a local agent command
+(never through argv or the shell string), and reports the exit code, log
+tail and any PR url back:
+
+```bash
+phelm runner --agent "<your agent command>" --api http://localhost:3000 --token <runner token>
+```
+
+Use a dedicated **runner token** (`run_…`, issued by the operator on the
+Helm server — see the server's ops guide) rather than your operator token:
+the runner credential can only claim tasks and file reports, is audited and
+can be revoked on its own.
 
 ## Privacy
 

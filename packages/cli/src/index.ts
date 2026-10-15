@@ -3,7 +3,6 @@
 import { realpathSync } from 'node:fs';
 import { pathToFileURL } from 'node:url';
 import { Command } from 'commander';
-import { PHELM_CONTRACT_VERSION } from '@phelm/contract';
 import { clearRawCredentials, openConfig } from './config.js';
 import { fetchBoard, renderBoard } from './board.js';
 import {
@@ -24,6 +23,7 @@ import {
 } from './github-api.js';
 import { parseIntervalSeconds, runRunner, type RunnerOptions } from './runner.js';
 import { recordCommandPing, type SendCliPingOptions } from './telemetry.js';
+import { PHELM_CLI_VERSION } from './version.js';
 
 /**
  * The phelm CLI (T-0009): `login` (GitHub device flow, encrypted local
@@ -61,7 +61,11 @@ export interface CliDeps {
 /** Build the phelm commander program. Exported so tests can drive it. */
 export function createProgram(deps: CliDeps = {}): Command {
   const env = deps.env ?? process.env;
-  const config = openConfig(env);
+  // Lazy (review P3): opening the config creates ~/.phelm, and createProgram
+  // also builds --help / --version, which must not have filesystem side
+  // effects. The config is opened on first use by a command that needs it.
+  let configCache: ReturnType<typeof openConfig> | undefined;
+  const getConfig = (): ReturnType<typeof openConfig> => (configCache ??= openConfig(env));
   const deviceFlow = deps.deviceFlow ?? ((clientId: string) => loginWithDeviceFlow(clientId));
   const listRepos = deps.listRepos ?? ((token: string) => listUserRepos(token));
   const importRepo =
@@ -91,10 +95,10 @@ export function createProgram(deps: CliDeps = {}): Command {
   const ping = (command: string, apiBaseUrl: string, telemetry?: boolean): Promise<void> =>
     recordCommandPing({
       env,
-      config,
+      config: getConfig(),
       apiBaseUrl,
       command,
-      version: PHELM_CONTRACT_VERSION,
+      version: PHELM_CLI_VERSION,
       flag: telemetry,
       ...(deps.sendPing === undefined ? {} : { send: deps.sendPing }),
     });
@@ -104,7 +108,7 @@ export function createProgram(deps: CliDeps = {}): Command {
   program
     .name('phelm')
     .description('Task board tracker for ProjectHelm')
-    .version(PHELM_CONTRACT_VERSION);
+    .version(PHELM_CLI_VERSION);
 
   program
     .command('board')
@@ -248,7 +252,7 @@ export function createProgram(deps: CliDeps = {}): Command {
     )
     .action(async (options: { clientId: string }) => {
       const token = await deviceFlow(options.clientId);
-      saveStoredToken(config, token);
+      saveStoredToken(getConfig(), token);
       console.log('Signed in. The token is stored encrypted locally.');
     });
 
@@ -256,7 +260,7 @@ export function createProgram(deps: CliDeps = {}): Command {
     .command('logout')
     .description('Remove the stored GitHub token')
     .action(() => {
-      if (clearRawCredentials(config)) {
+      if (clearRawCredentials(getConfig())) {
         console.log('Signed out.');
       } else {
         console.log('Not signed in.');
@@ -268,7 +272,7 @@ export function createProgram(deps: CliDeps = {}): Command {
     .description('List your GitHub repositories (use "repos import" to start tracking one)')
     .option('--json', 'Print the list as JSON')
     .action(async (options: { json?: boolean }) => {
-      const token = loadStoredToken(config);
+      const token = loadStoredToken(getConfig());
       if (token === undefined) {
         console.error('Not signed in. Run: phelm login');
         process.exitCode = 1;

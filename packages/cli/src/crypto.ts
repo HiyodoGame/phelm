@@ -1,5 +1,5 @@
 import { createCipheriv, createDecipheriv, randomBytes } from 'node:crypto';
-import { existsSync, readFileSync, writeFileSync } from 'node:fs';
+import { chmodSync, readFileSync, writeFileSync } from 'node:fs';
 import { keyPath, readRawCredentials, writeRawCredentials, type PhelmConfig } from './config.js';
 
 /**
@@ -15,17 +15,38 @@ import { keyPath, readRawCredentials, writeRawCredentials, type PhelmConfig } fr
 const KEY_BYTES = 32;
 const IV_BYTES = 12;
 
-/** Load the local key, creating a fresh random one (mode 0600) if absent. */
+/**
+ * Load the local key, creating a fresh random one (mode 0600) if absent.
+ *
+ * Creation is atomic (review P2 fix): the key is written with flag 'wx'
+ * (fail if the file exists) instead of an exists-then-write race — two
+ * concurrent processes used to be able to generate DIFFERENT keys where the
+ * second write silently replaced the first, permanently bricking the token
+ * the first process had just encrypted. Losing the creation race is fine:
+ * the winner's key is on disk and we read it. mode is only applied at
+ * creation on POSIX; an explicit chmod also tightens a pre-existing wider
+ * file (mode on writeFileSync does not).
+ */
 export function loadOrCreateKey(config: PhelmConfig): Buffer {
   const path = keyPath(config);
-  if (!existsSync(path)) {
+  try {
     const key = randomBytes(KEY_BYTES);
-    writeFileSync(path, key, { mode: 0o600 });
+    writeFileSync(path, key, { mode: 0o600, flag: 'wx' });
     return key;
+  } catch (error) {
+    const code = (error as NodeJS.ErrnoException | null)?.code;
+    if (code !== 'EEXIST') {
+      throw error;
+    }
   }
   const key = readFileSync(path);
   if (key.length !== KEY_BYTES) {
     throw new Error(`credential key file has an unexpected size: ${key.length} bytes`);
+  }
+  try {
+    chmodSync(path, 0o600);
+  } catch {
+    // Best effort (Windows ignores POSIX modes); never blocks reading.
   }
   return key;
 }
@@ -75,6 +96,14 @@ export function loadStoredToken(config: PhelmConfig): string | undefined {
   if (raw === undefined || raw === '') {
     return undefined;
   }
-  const payload = JSON.parse(raw) as EncryptedPayload;
+  // A corrupted file must yield an actionable message, not a raw JSON parse
+  // error with a fragment of the (encrypted, but still sensitive-shaped)
+  // blob in the terminal (review P3 fix).
+  let payload: EncryptedPayload;
+  try {
+    payload = JSON.parse(raw) as EncryptedPayload;
+  } catch {
+    throw new Error('the stored credentials file is corrupted; run `phelm logout` to reset it');
+  }
   return decryptString(payload, loadOrCreateKey(config));
 }
