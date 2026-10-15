@@ -184,6 +184,17 @@ const reportAckSchema = z
   })
   .strict();
 
+/** loopback hosts where cleartext http is acceptable (traffic never leaves the machine). */
+function isLoopbackHost(hostname: string): boolean {
+  return (
+    hostname === 'localhost' ||
+    hostname === '127.0.0.1' ||
+    hostname === '::1' ||
+    hostname === '[::1]' ||
+    hostname.endsWith('.localhost')
+  );
+}
+
 export class HelmApiClient implements HelmApi {
   private readonly fetchFn: typeof fetch;
   private readonly base: string;
@@ -197,6 +208,16 @@ export class HelmApiClient implements HelmApi {
     this.token = config.token;
     this.timeoutMs = config.timeoutMs ?? DEFAULT_TIMEOUT_MS;
     this.log = config.log ?? ((line: string) => console.error(line));
+    // Cleartext http to a non-loopback host would put the bearer token on the
+    // wire unencrypted (review P2 hardening): the deployment is almost
+    // certainly misconfigured, so say so once on stderr and continue — the
+    // operator decides, the client does not silently encrypt-or-refuse.
+    const url = new URL(this.base);
+    if (url.protocol === 'http:' && !isLoopbackHost(url.hostname)) {
+      this.log(
+        `warning: HELM_API_URL uses cleartext http (${this.base}); the API token travels unencrypted — use https or a loopback address`,
+      );
+    }
   }
 
   fetchBoard(): Promise<Board> {
@@ -239,6 +260,8 @@ export class HelmApiClient implements HelmApi {
         headers: { Authorization: `Bearer ${this.token}`, 'Content-Type': 'application/json' },
         body: JSON.stringify(input),
         signal: AbortSignal.timeout(this.timeoutMs),
+        // Same-origin redirects must not replay the token (see request()).
+        redirect: 'error',
       });
     } catch {
       throw new HelmNetworkError(this.base);
@@ -286,6 +309,11 @@ export class HelmApiClient implements HelmApi {
       response = await this.fetchFn(`${this.base}${path}`, {
         headers: { Authorization: `Bearer ${this.token}` },
         signal: AbortSignal.timeout(this.timeoutMs),
+        // Never follow redirects (review P2 hardening): same-origin redirects
+        // would re-send the Authorization header to wherever the (ops
+        // -controlled) base URL points; a misconfigured base should fail
+        // loudly instead of quietly replaying the token elsewhere.
+        redirect: 'error',
       });
     } catch {
       throw new HelmNetworkError(this.base);
