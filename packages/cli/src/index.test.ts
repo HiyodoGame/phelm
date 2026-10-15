@@ -2,7 +2,7 @@ import { mkdtempSync, rmSync } from 'node:fs';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 import { afterAll, beforeEach, describe, expect, it, vi } from 'vitest';
-import { PHELM_CONTRACT_VERSION } from '@phelm/contract';
+import { PHELM_CLI_VERSION } from './version.js';
 import { openConfig, clearRawCredentials } from './config.js';
 import { BriefingNotFoundError } from './brief.js';
 import { loadStoredToken, saveStoredToken } from './crypto.js';
@@ -103,9 +103,9 @@ describe('phelm cli', () => {
     expect(program.name()).toBe('phelm');
   });
 
-  it('reports a non-empty version taken from the contract', () => {
+  it('reports the CLI package version (not the contract version)', () => {
     const program = createProgram(makeDeps());
-    expect(program.version()).toBe(PHELM_CONTRACT_VERSION);
+    expect(program.version()).toBe(PHELM_CLI_VERSION);
     expect(program.version()).toMatch(/^\d+\.\d+\.\d+$/);
   });
 
@@ -355,7 +355,7 @@ describe('anonymous telemetry ping (T-0040)', () => {
     expect(pings).toHaveLength(1);
     const ping = pings[0]!;
     expect(ping.command).toBe('brief');
-    expect(ping.version).toBe(PHELM_CONTRACT_VERSION);
+    expect(ping.version).toBe(PHELM_CLI_VERSION);
     expect(ping.apiBaseUrl).toBe('http://api.example.test');
     expect(ping.installId).toMatch(
       /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i,

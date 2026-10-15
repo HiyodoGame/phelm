@@ -47,12 +47,14 @@ export const AgentTypeSchema = z.string().min(1);
  * The owner follows GitHub account rules (alphanumerics, single interior hyphens,
  * max 39 chars); the repository name allows alphanumerics, ".", "_", and "-".
  */
-export const RepoRefSchema = z
-  .string()
-  .regex(
-    /^[A-Za-z0-9](?:[A-Za-z0-9]|-(?=[A-Za-z0-9])){0,38}\/[A-Za-z0-9_.-]+$/,
-    'expected a GitHub repository reference in "owner/name" form',
-  );
+export const RepoRefSchema = z.string().regex(
+  // Owner: GitHub's 1-39 char login shape (no leading/trailing hyphen).
+  // Name: must START with an alphanumeric — GitHub does not allow creating
+  // a repository whose name begins with a dot or hyphen, and requiring it
+  // here rejects degenerate shapes like `owner/...` outright (review P3).
+  /^[A-Za-z0-9](?:[A-Za-z0-9]|-(?=[A-Za-z0-9])){0,38}\/[A-Za-z0-9][A-Za-z0-9_.-]{0,99}$/,
+  'expected a GitHub repository reference in "owner/name" form',
+);
 
 /** Identifier of a task on the board, for example "T-0042". */
 export const TaskIdSchema = z.string().regex(/^T-\d{4}$/);

@@ -255,7 +255,7 @@ describe('HelmApiClient.reportProgress (T-0025)', () => {
     const errorSpy = vi.spyOn(console, 'error').mockImplementation(() => {});
     try {
       const fetchFn = vi.fn<typeof fetch>().mockResolvedValue(statusResponse(404));
-      const client = makeClient(fetchFn, { apiBaseUrl: 'http://api.test///' });
+      const client = makeClient(fetchFn, { apiBaseUrl: 'http://localhost:9911///' });
       await expect(client.reportProgress(input)).resolves.toEqual({
         received: true,
         audited: false,
@@ -267,7 +267,7 @@ describe('HelmApiClient.reportProgress (T-0025)', () => {
       expect(errorSpy).toHaveBeenCalledTimes(1);
       expect(JSON.parse(errorSpy.mock.calls[0]![0] as string)).toEqual({
         event: 'report_progress_degraded',
-        url: 'http://api.test/mcp/reports',
+        url: 'http://localhost:9911/mcp/reports',
         reason: 'server answered 404 (predates POST /mcp/reports); answering the v1 receipt',
       });
     } finally {

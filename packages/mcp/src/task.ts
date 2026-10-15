@@ -87,11 +87,15 @@ export async function buildAdvisory(client: HelmApi): Promise<AdvisoryResult> {
     (relation) => relation.status === 'active',
   );
 
-  const openGaps: LinkageGap[] = [];
-  for (const relation of relations) {
-    const response = await client.fetchOpenGapGroups(relation.id);
-    openGaps.push(...response.groups.flatMap((group) => group.gaps));
-  }
+  // Parallel (review P2 fix): N relations used to cost N SERIAL round-trips
+  // (each up to the client's 30s timeout) inside ONE tool call — easily past
+  // the caller's own tool timeout. Relation counts are small; fan out.
+  const gapGroups = await Promise.all(
+    relations.map((relation) => client.fetchOpenGapGroups(relation.id)),
+  );
+  const openGaps: LinkageGap[] = gapGroups.flatMap((response) =>
+    response.groups.flatMap((group) => group.gaps),
+  );
 
   if (openGaps.length === 0) {
     return { advisory: true, task: null, note: 'all chains are in sync' };

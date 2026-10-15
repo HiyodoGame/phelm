@@ -50,7 +50,8 @@ describe('tool schema contract', () => {
     expect(schema.type).toBe('object');
     expect(schema.additionalProperties).toBe(false);
     expect(schema.properties).toEqual({
-      repo: { type: 'string', minLength: 1 },
+      // maxLength caps the untracked-repo echo (review P2 fix).
+      repo: { type: 'string', minLength: 1, maxLength: 200 },
     });
     expect(schema.required === undefined || (schema.required as string[]).length === 0).toBe(true);
   });

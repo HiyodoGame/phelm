@@ -6,6 +6,8 @@
  * leniently (zod is not pulled in just for this).
  */
 
+import { warnCleartextApiUrl } from './board.js';
+
 export interface UserRepo {
   fullName: string;
   private: boolean;
@@ -87,6 +89,7 @@ export async function importRepoOnServer(options: {
 }): Promise<ImportResult> {
   const fetchFn = options.fetch ?? fetch;
   const base = options.apiBaseUrl.replace(/\/+$/, '');
+  warnCleartextApiUrl(base);
   let response: Response;
   try {
     response = await fetchFn(`${base}/projects/from-repo`, {
@@ -96,6 +99,11 @@ export async function importRepoOnServer(options: {
         'Content-Type': 'application/json',
       },
       body: JSON.stringify({ repo: options.repo }),
+      // Same-origin redirects must not replay the token (review P2 hardening).
+      // Only the HELM-server call here — the GitHub REST fetch above keeps
+      // its default redirect behaviour (GitHub legitimately redirects, and
+      // cross-origin redirects strip Authorization per the fetch spec).
+      redirect: 'error',
     });
   } catch {
     throw new GitHubApiError(`cannot reach the Helm Agent server at ${base} (is it running?)`);

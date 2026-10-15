@@ -54,7 +54,7 @@ export function createPhelmMcpServer(deps: PhelmMcpDeps): McpServer {
         'this tool never writes to the server. A repo that is not tracked answers with an explicit ' +
         '"project not tracked" message instead of an empty result.',
       inputSchema: z.strictObject({
-        repo: z.string().min(1).optional(),
+        repo: z.string().min(1).max(200).optional(),
       }),
     },
     async (args) => {

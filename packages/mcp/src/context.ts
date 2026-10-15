@@ -143,14 +143,16 @@ export async function buildProjectContext(
       (scopedIds.has(relation.sourceProjectId) || scopedIds.has(relation.targetProjectId)),
   );
 
-  const gapsByRelation = new Map<string, LinkageGap[]>();
-  for (const relation of relevantRelations) {
-    const response = await client.fetchOpenGapGroups(relation.id);
-    gapsByRelation.set(
+  // Parallel (review P2 fix): same serial round-trip argument as buildAdvisory.
+  const gapResponses = await Promise.all(
+    relevantRelations.map((relation) => client.fetchOpenGapGroups(relation.id)),
+  );
+  const gapsByRelation = new Map<string, LinkageGap[]>(
+    relevantRelations.map((relation, index) => [
       relation.id,
-      response.groups.flatMap((group) => group.gaps),
-    );
-  }
+      gapResponses[index]!.groups.flatMap((group) => group.gaps),
+    ]),
+  );
 
   const projects: ContextProject[] = scoped.map((project) => ({
     id: project.id,
