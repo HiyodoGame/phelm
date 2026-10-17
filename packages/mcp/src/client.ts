@@ -347,7 +347,10 @@ export class HelmApiClient implements HelmApi {
 const boardSnapshotSchema = z.object({
   date: z.string(),
   healthScore: z.number(),
-  factors: z.record(z.string(), z.number()),
+  // T-0017: mirrors the contract's nullable factor values — a factor with no
+  // real signal is `null`, and rejecting it here would invalidate the entire
+  // board response for every project.
+  factors: z.record(z.string(), z.number().nullable()),
   summary: z.string(),
 });
 
