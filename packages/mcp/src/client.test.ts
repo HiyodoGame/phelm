@@ -134,6 +134,25 @@ describe('HelmApiClient', () => {
     expect((init?.headers as Record<string, string>).Authorization).toBe('Bearer secret-token');
   });
 
+  it('accepts a null factor value on the board (T-0017)', async () => {
+    const payload = {
+      ...boardPayload,
+      projects: [
+        {
+          ...boardPayload.projects[0]!,
+          snapshot: {
+            ...boardPayload.projects[0]!.snapshot!,
+            factors: { activity: 3, direction_alignment: null },
+          },
+        },
+        ...boardPayload.projects.slice(1),
+      ],
+    };
+    const fetchFn = vi.fn<typeof fetch>().mockResolvedValue(okResponse(payload));
+    const board = await makeClient(fetchFn).fetchBoard();
+    expect(board.projects[0]?.snapshot?.factors.direction_alignment).toBeNull();
+  });
+
   it('normalizes a trailing slash on the base URL', async () => {
     const fetchFn = vi.fn<typeof fetch>().mockResolvedValue(okResponse(boardPayload));
     const client = makeClient(fetchFn, { apiBaseUrl: 'http://api.test///' });

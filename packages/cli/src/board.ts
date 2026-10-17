@@ -19,7 +19,11 @@ export class BoardError extends Error {
 const snapshotSchema = z.object({
   date: z.string(),
   healthScore: z.number(),
-  factors: z.record(z.string(), z.number()),
+  // T-0017: a factor with no real signal is reported as `null`, not as a
+  // neutral number. Validating it as `z.number()` here would reject the WHOLE
+  // board payload — one honestly-unknown factor would make `phelm board` fail
+  // for every project.
+  factors: z.record(z.string(), z.number().nullable()),
   summary: z.string(),
 });
 

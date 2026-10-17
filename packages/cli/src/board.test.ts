@@ -94,6 +94,29 @@ describe('fetchBoard', () => {
     expect(calls[0]).toBe('http://localhost:3000/board');
   });
 
+  it('accepts a null factor value instead of failing the whole board (T-0017)', async () => {
+    // The producer reports an absent signal as `null`. Rejecting it would make
+    // `phelm board` fail for EVERY project because one factor was honestly
+    // reported as unknown — the failure mode this assertion exists to prevent.
+    const payload = {
+      ...SAMPLE,
+      projects: [
+        {
+          ...SAMPLE.projects[0]!,
+          snapshot: {
+            ...SAMPLE.projects[0]!.snapshot!,
+            factors: { activity: 3, direction_alignment: null },
+          },
+        },
+        SAMPLE.projects[1]!,
+      ],
+    };
+    const fetchFn: typeof fetch = () => Promise.resolve(jsonResponse(payload));
+    const board = await fetchBoard({ ...base, fetch: fetchFn });
+    expect(board.projects[0]?.snapshot?.factors.direction_alignment).toBeNull();
+    expect(board.projects[0]?.snapshot?.factors.activity).toBe(3);
+  });
+
   it('maps 401 / 503 / unreachable to user-actionable errors', async () => {
     await expect(
       fetchBoard({ ...base, fetch: () => Promise.resolve(jsonResponse({}, 401)) }),

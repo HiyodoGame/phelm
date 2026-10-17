@@ -25,7 +25,13 @@ export const EventSchema = z
 
 /**
  * Keys of the health factors that feed the daily health score.
- * A Snapshot must carry a value for every key.
+ *
+ * A Snapshot must carry EVERY key — the key set is fixed, not partial. A
+ * key's VALUE may be `null`, which means "this factor has no real signal for
+ * the period". That is deliberately different from `0` (a real, bad
+ * measurement) and from a neutral mid value (which silently pretends a
+ * measurement exists): a consumer that cannot tell "unknown" from "healthy"
+ * will report a confident score built partly on nothing.
  */
 export const HEALTH_FACTOR_KEYS = [
   'milestone_progress',
@@ -45,8 +51,13 @@ export const SnapshotSchema = z
     date: DateOnlySchema,
     /** Overall health score from 0 to 100 (inclusive integer). */
     healthScore: z.number().int().min(0).max(100),
-    /** Per-factor scores; a value is required for every {@link HealthFactorKey}. */
-    factors: z.record(HealthFactorKeySchema, z.number()),
+    /**
+     * Per-factor scores; every {@link HealthFactorKey} must be present, and a
+     * value may be `null` meaning "no real signal for this period" (see
+     * {@link HEALTH_FACTOR_KEYS}). Consumers must treat `null` as UNKNOWN —
+     * never as 0, and never as a neutral score.
+     */
+    factors: z.record(HealthFactorKeySchema, z.number().nullable()),
     /** One-line narrative summary shown in the briefing. */
     summary: z.string(),
   })
