@@ -62,6 +62,30 @@ describe('SnapshotSchema', () => {
     ).toBe(false);
   });
 
+  it('accepts a null factor value but NOT a null key (unknown is not absent)', () => {
+    // `null` = "no real signal this period" (T-0017). The KEY must still be
+    // there: an absent key means the shape is wrong, a null value means the
+    // shape is right and the measurement is missing. Conflating the two would
+    // make "we have no idea" indistinguishable from "the producer forgot".
+    const withNull = { ...snapshot, factors: { ...snapshot.factors, direction_alignment: null } };
+    const parsed = SnapshotSchema.parse(withNull);
+    expect(parsed.factors.direction_alignment).toBeNull();
+    // Every key is still present — only one value changed.
+    expect(Object.keys(parsed.factors).sort()).toEqual([...HEALTH_FACTOR_KEYS].sort());
+
+    // Dropping the key entirely is still a shape error, even though the value
+    // is allowed to be null.
+    const { direction_alignment: _dropped, ...keyMissing } = withNull.factors;
+    expect(SnapshotSchema.safeParse({ ...snapshot, factors: keyMissing }).success).toBe(false);
+  });
+
+  it('accepts null on any factor key (the type does not single one out)', () => {
+    for (const key of HEALTH_FACTOR_KEYS) {
+      const factors = { ...snapshot.factors, [key]: null };
+      expect(SnapshotSchema.safeParse({ ...snapshot, factors }).success, key).toBe(true);
+    }
+  });
+
   it('rejects health scores outside 0-100', () => {
     expect(SnapshotSchema.safeParse({ ...snapshot, healthScore: 101 }).success).toBe(false);
     expect(SnapshotSchema.safeParse({ ...snapshot, healthScore: -1 }).success).toBe(false);

@@ -694,7 +694,10 @@ exports[`exportJsonSchemas > locks the exported shapes 1`] = `
       },
       "factors": {
         "additionalProperties": {
-          "type": "number",
+          "type": [
+            "number",
+            "null",
+          ],
         },
         "propertyNames": {
           "enum": [
